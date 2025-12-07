@@ -13,8 +13,8 @@ struct PetWalkApp: App {
     var body: some Scene {
         WindowGroup {
             // 🔴 以前这里写的是 ContentView()
-            // 🟢 现在把它改成我们新写的 HomeView()
-            HomeView()
+            // 🟢 现在把它改成我们新写的 MainTabView()，由它来管理 HomeView 和 HistoryView
+            MainTabView()
         }
     }
 }

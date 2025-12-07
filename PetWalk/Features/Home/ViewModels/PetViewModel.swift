@@ -40,6 +40,8 @@ class PetViewModel: ObservableObject {
                     self.currentPetImage = processedImage
                     // 4. 保存到本地文件
                     saveImageToDocuments(processedImage)
+                    
+                    WatchConnector.shared.sendImageToWatch(processedImage)
                 }
             }
             self.isProcessing = false
