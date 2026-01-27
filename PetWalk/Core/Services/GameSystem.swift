@@ -11,15 +11,20 @@ class GameSystem {
     // 单例模式，或者直接作为静态工具类
     static let shared = GameSystem()
     
-    // 抽奖费用
-    let drawCost = 100
-    
     // 经济系统：1km = 10 骨头币
     func calculateBones(distanceKm: Double) -> Int {
         // 至少给 1 个币（如果是有效距离）
         if distanceKm < 0.05 { return 0 }
         return max(1, Int(distanceKm * 10))
     }
+    
+    // MARK: - ⚠️ DEPRECATED - 以下代码已弃用
+    // 寻宝系统和抽奖系统已被成就系统替代
+    // 弃用日期: 2026/01/28
+    
+    /*
+    // 抽奖费用
+    let drawCost = 100
     
     // 寻宝系统：根据距离判断掉落
     // 距离 > 0.5km 才有几率掉落
@@ -90,4 +95,5 @@ class GameSystem {
         let pool = TreasureItem.allItems.filter { $0.rarity == rarity }
         return pool.randomElement()
     }
+    */
 }

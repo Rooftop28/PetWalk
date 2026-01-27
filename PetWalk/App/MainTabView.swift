@@ -10,7 +10,7 @@ import SwiftUI
 enum Tab {
     case home
     case history
-    case dress
+    case achievement  // 原 dress，改为 achievement
 }
 
 struct MainTabView: View {
@@ -25,8 +25,8 @@ struct MainTabView: View {
                     HomeView()
                 case .history:
                     HistoryView()
-                case .dress:
-                    InventoryView()
+                case .achievement:
+                    AchievementView()  // 替换为成就页面
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)

@@ -12,7 +12,8 @@ struct WalkSummaryView: View {
     // 输入参数：本次遛狗的数据
     let duration: TimeInterval
     let distance: Double
-    let routeCoordinates: [RoutePoint] // 新增：轨迹数据
+    let routeCoordinates: [RoutePoint] // 轨迹数据
+    let walkStartTime: Date // 遛狗开始时间（用于成就检测）
     
     // 回调：完成保存
     var onFinish: () -> Void
@@ -29,7 +30,18 @@ struct WalkSummaryView: View {
     
     // 游戏化奖励状态
     @State private var earnedBones: Int = 0
-    @State private var foundItems: [TreasureItem] = []
+    @State private var unlockedAchievements: [Achievement] = []
+    @State private var showAchievementPopup = false
+    @State private var currentAchievementIndex = 0
+    
+    // 初始化（添加默认值以兼容旧调用）
+    init(duration: TimeInterval, distance: Double, routeCoordinates: [RoutePoint], walkStartTime: Date = Date(), onFinish: @escaping () -> Void) {
+        self.duration = duration
+        self.distance = distance
+        self.routeCoordinates = routeCoordinates
+        self.walkStartTime = walkStartTime
+        self.onFinish = onFinish
+    }
     
     var body: some View {
         ZStack {
@@ -50,7 +62,7 @@ struct WalkSummaryView: View {
                     }
                     .padding(.horizontal)
                     
-                    // 2.5 奖励展示区 (Gamification)
+                    // 2.5 奖励展示区 (骨头币 + 成就)
                     VStack(spacing: 15) {
                         Text("本次收获")
                             .font(.headline)
@@ -59,30 +71,29 @@ struct WalkSummaryView: View {
                         HStack(spacing: 30) {
                             // 骨头币
                             VStack {
-                                Image(systemName: "bone.fill")
-                                    .font(.title)
-                                    .foregroundColor(.yellow)
+                                Text("🦴")
+                                    .font(.system(size: 36))
                                 Text("+\(earnedBones)")
                                     .font(.title2)
                                     .fontWeight(.bold)
                                     .foregroundColor(.appBrown)
+                                    .contentTransition(.numericText(value: Double(earnedBones)))
                             }
                             
-                            // 掉落物
-                            if foundItems.isEmpty {
-                                Text("这次没有捡到东西呢...")
-                                    .font(.caption)
-                                    .foregroundColor(.gray)
-                            } else {
-                                ForEach(foundItems) { item in
-                                    VStack {
-                                        Image(systemName: item.iconName)
-                                            .font(.title)
-                                            .foregroundColor(item.rarity.color)
-                                        Text(item.name)
-                                            .font(.caption)
-                                            .foregroundColor(.appBrown)
-                                    }
+                            // 成就解锁提示
+                            if !unlockedAchievements.isEmpty {
+                                VStack(spacing: 5) {
+                                    Image(systemName: "trophy.fill")
+                                        .font(.system(size: 32))
+                                        .foregroundColor(.yellow)
+                                    Text("解锁 \(unlockedAchievements.count) 个成就")
+                                        .font(.caption)
+                                        .fontWeight(.medium)
+                                        .foregroundColor(.appBrown)
+                                }
+                                .onTapGesture {
+                                    currentAchievementIndex = 0
+                                    showAchievementPopup = true
                                 }
                             }
                         }
@@ -90,6 +101,40 @@ struct WalkSummaryView: View {
                         .background(Color.white)
                         .cornerRadius(15)
                         .shadow(color: .black.opacity(0.05), radius: 5)
+                        
+                        // 成就列表预览
+                        if !unlockedAchievements.isEmpty {
+                            VStack(spacing: 8) {
+                                ForEach(unlockedAchievements) { achievement in
+                                    HStack(spacing: 10) {
+                                        Image(systemName: achievement.iconSymbol)
+                                            .font(.title3)
+                                            .foregroundColor(achievement.category.color)
+                                            .frame(width: 30)
+                                        
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text(achievement.name)
+                                                .font(.subheadline)
+                                                .fontWeight(.medium)
+                                                .foregroundColor(.appBrown)
+                                            Text("+\(achievement.rewardBones) 🦴")
+                                                .font(.caption)
+                                                .foregroundColor(.appGreenMain)
+                                        }
+                                        
+                                        Spacer()
+                                        
+                                        Image(systemName: "checkmark.seal.fill")
+                                            .foregroundColor(.appGreenMain)
+                                    }
+                                    .padding(.horizontal, 15)
+                                    .padding(.vertical, 10)
+                                    .background(achievement.category.color.opacity(0.1))
+                                    .cornerRadius(10)
+                                }
+                            }
+                            .padding(.horizontal)
+                        }
                     }
                     .padding(.horizontal)
                     .transition(.scale)
@@ -167,29 +212,70 @@ struct WalkSummaryView: View {
                     .padding(.bottom, 30)
                 }
             }
+            
+            // 成就解锁弹窗
+            if showAchievementPopup, currentAchievementIndex < unlockedAchievements.count {
+                AchievementUnlockPopup(
+                    achievement: unlockedAchievements[currentAchievementIndex],
+                    onDismiss: {
+                        if currentAchievementIndex < unlockedAchievements.count - 1 {
+                            currentAchievementIndex += 1
+                        } else {
+                            showAchievementPopup = false
+                        }
+                    }
+                )
+            }
         }
         .onAppear {
-            // 计算奖励
-            let bones = GameSystem.shared.calculateBones(distanceKm: distance)
-            let items = GameSystem.shared.generateDrops(distanceKm: distance)
-            
-            // 简单动画延迟显示
-            withAnimation(.spring().delay(0.5)) {
-                self.earnedBones = bones
-                self.foundItems = items
+            calculateRewards()
+        }
+    }
+    
+    // 计算奖励（骨头币 + 成就检测）
+    private func calculateRewards() {
+        // 计算骨头币
+        let bones = GameSystem.shared.calculateBones(distanceKm: distance)
+        
+        // 检测成就（需要先获取副本，修改后再设置回去）
+        var userData = dataManager.userData
+        let achievements = AchievementManager.shared.checkAndUnlockAchievements(
+            userData: &userData,
+            walkDistance: distance,
+            walkStartTime: walkStartTime
+        )
+        
+        // 计算成就奖励的骨头币
+        let achievementBones = achievements.reduce(0) { $0 + $1.rewardBones }
+        
+        // 更新状态（带动画）
+        withAnimation(.spring().delay(0.5)) {
+            self.earnedBones = bones + achievementBones
+            self.unlockedAchievements = achievements
+        }
+        
+        // 如果有成就解锁，稍后显示弹窗
+        if !achievements.isEmpty {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                showAchievementPopup = true
             }
         }
     }
     
     // 保存逻辑
     private func saveRecord() {
-        // 更新 UserData (累加骨头币和物品)
+        // 更新 UserData (累加骨头币，成就已在 calculateRewards 中处理)
         var currentUserData = dataManager.userData
         currentUserData.totalBones += earnedBones
-        for item in foundItems {
-            currentUserData.inventory[item.id, default: 0] += 1
-        }
         currentUserData.lastWalkDate = Date()
+        
+        // 再次调用成就检测以确保数据一致性（已经解锁的不会重复解锁）
+        _ = AchievementManager.shared.checkAndUnlockAchievements(
+            userData: &currentUserData,
+            walkDistance: distance,
+            walkStartTime: walkStartTime
+        )
+        
         dataManager.updateUserData(currentUserData)
         
         // 1. 保存图片到本地
@@ -220,9 +306,9 @@ struct WalkSummaryView: View {
             duration: Int(duration / 60),
             mood: mood,
             imageName: imageName,
-            route: routeCoordinates, // 保存轨迹
-            itemsFound: foundItems.map { $0.id }, // 保存物品ID
-            bonesEarned: earnedBones // 保存骨头币
+            route: routeCoordinates,
+            itemsFound: nil, // 不再使用物品系统
+            bonesEarned: earnedBones
         )
         
         // 3. 存入 DataManager
@@ -235,6 +321,87 @@ struct WalkSummaryView: View {
     // 辅助格式化
     func formatDuration(_ interval: TimeInterval) -> String {
         return String(format: "%.0f", interval / 60)
+    }
+}
+
+// MARK: - 成就解锁弹窗
+struct AchievementUnlockPopup: View {
+    let achievement: Achievement
+    let onDismiss: () -> Void
+    
+    @State private var isAnimating = false
+    
+    var body: some View {
+        ZStack {
+            // 背景遮罩
+            Color.black.opacity(0.5)
+                .ignoresSafeArea()
+                .onTapGesture {
+                    onDismiss()
+                }
+            
+            // 弹窗内容
+            VStack(spacing: 20) {
+                // 图标
+                ZStack {
+                    Circle()
+                        .fill(achievement.category.color.opacity(0.2))
+                        .frame(width: 100, height: 100)
+                    
+                    Image(systemName: achievement.iconSymbol)
+                        .font(.system(size: 45))
+                        .foregroundColor(achievement.category.color)
+                        .scaleEffect(isAnimating ? 1.1 : 0.9)
+                        .animation(
+                            Animation.easeInOut(duration: 0.8)
+                                .repeatForever(autoreverses: true),
+                            value: isAnimating
+                        )
+                }
+                
+                Text("成就解锁！")
+                    .font(.headline)
+                    .foregroundColor(.gray)
+                
+                Text(achievement.name)
+                    .font(.title)
+                    .fontWeight(.bold)
+                    .foregroundColor(.appBrown)
+                
+                Text(achievement.description)
+                    .font(.subheadline)
+                    .foregroundColor(.gray)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal)
+                
+                HStack(spacing: 5) {
+                    Text("奖励")
+                        .foregroundColor(.gray)
+                    Text("🦴 +\(achievement.rewardBones)")
+                        .fontWeight(.bold)
+                        .foregroundColor(.appGreenMain)
+                }
+                .font(.headline)
+                
+                Button(action: onDismiss) {
+                    Text("太棒了！")
+                        .font(.headline)
+                        .foregroundColor(.white)
+                        .frame(width: 200)
+                        .padding()
+                        .background(achievement.category.color)
+                        .cornerRadius(15)
+                }
+            }
+            .padding(30)
+            .background(Color.appBackground)
+            .cornerRadius(25)
+            .shadow(radius: 20)
+            .padding(40)
+        }
+        .onAppear {
+            isAnimating = true
+        }
     }
 }
 

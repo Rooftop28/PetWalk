@@ -62,8 +62,17 @@ struct HomeView: View {
     // 是否显示结算页
     @State private var showSummary = false
     
-    // 是否显示商店/抽奖页
+    // 是否显示奖励商店页
     @State private var showShop = false
+    
+    // 是否显示头像编辑器
+    @State private var showAvatarCreator = false
+    
+    // 遛狗开始时间（用于成就检测）
+    @State private var walkStartTime: Date = Date()
+    
+    // 头像管理器
+    @ObservedObject private var avatarManager = AvatarManager.shared
     
     var body: some View {
         ZStack {
@@ -96,15 +105,20 @@ struct HomeView: View {
                 routeCoordinates: walkManager.locationService.routeCoordinates.map { 
                     RoutePoint(lat: $0.latitude, lon: $0.longitude) 
                 },
+                walkStartTime: walkStartTime,  // 传入遛狗开始时间
                 onFinish: {
                     showSummary = false
                     // 可以在这里重置 walkManager 的数据，如果需要的话
                 }
             )
         }
-        // 弹出商店页
+        // 弹出奖励商店页
         .sheet(isPresented: $showShop) {
-            ShopView()
+            RewardShopView()  // 替换为奖励商店
+        }
+        // 弹出头像编辑器
+        .sheet(isPresented: $showAvatarCreator) {
+            AvatarCreatorView()
         }
     }
     
@@ -167,7 +181,7 @@ struct HomeView: View {
                     .frame(height: 350)
                     .offset(y: -20)
                 
-                // 2. 狗狗贴纸 (中间层)
+                // 2. 狗狗贴纸 (中间层) - 向左偏移给用户头像留空间
                 PhotosPicker(selection: $selectedItem, matching: .images) {
                     ZStack {
                         if viewModel.isProcessing {
@@ -201,17 +215,18 @@ struct HomeView: View {
                     .scaleEffect(isDogVisible ? 1.0 : 0.8)
                     .opacity(isDogVisible ? 1.0 : 0)
                 }
+                .offset(x: -30) // 向左偏移，给用户头像留空间
                 .onChange(of: selectedItem) { _, newItem in
                     viewModel.selectAndProcessImage(from: newItem)
                 }
                 
-                // 2.5 状态贴纸 (Overlay)
+                // 2.5 状态贴纸 (Overlay) - 跟随宠物偏移
                 if let emoji = currentMood.overlay.emoji {
                     let config = currentMood.overlay
                     Text(emoji)
                         .font(.system(size: 40))
                         // 基础位置 + 动画位移
-                        .offset(x: config.offset.width,
+                        .offset(x: config.offset.width - 30, // 跟随宠物偏移
                                 y: config.offset.height + (isAnimating ? config.offsetYTarget : 0))
                         // 动画缩放
                         .scaleEffect(isAnimating ? config.scaleTarget : 1.0)
@@ -221,9 +236,19 @@ struct HomeView: View {
                         .id(currentMood) // 强制刷新
                 }
                 
-                // 3. 气泡 (最上层)
+                // 2.6 用户头像 + 称号 - 右下角，营造反差萌效果
+                UserAvatarView(
+                    onTap: { showAvatarCreator = true },
+                    avatarSize: 70,
+                    showTitle: true
+                )
+                .offset(x: 100, y: 80) // 右下方位置
+                .opacity(isDogVisible ? 1 : 0)
+                .animation(.easeIn.delay(0.8), value: isDogVisible)
+                
+                // 3. 气泡 (最上层) - 调整位置
                 SpeechBubbleView(text: currentMood.dialogue.text)
-                    .offset(x: 80, y: -140)
+                    .offset(x: 50, y: -140) // 调整气泡位置
                     .opacity(isDogVisible ? 1 : 0)
                     .animation(.easeIn.delay(0.6), value: isDogVisible)
             }
@@ -340,6 +365,7 @@ struct HomeView: View {
             
             Button(action: {
                 // 点击开始遛狗
+                walkStartTime = Date()  // 记录开始时间
                 withAnimation {
                     walkManager.startWalk()
                 }

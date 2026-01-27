@@ -19,8 +19,8 @@ struct CustomTabBar: View {
             // 足迹 (History)
             tabItem(icon: "chart.bar.fill", text: "足迹", tab: .history)
             Spacer()
-            // 收藏 (Inventory) - 原装扮
-            tabItem(icon: "backpack.fill", text: "收藏", tab: .dress)
+            // 成就 (Achievement) - 原收藏
+            tabItem(icon: "trophy.fill", text: "成就", tab: .achievement)
             Spacer()
         }
         .padding(.top, 15)

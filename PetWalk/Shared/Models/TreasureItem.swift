@@ -5,6 +5,11 @@
 //  Created by Cursor AI on 2025/12/8.
 //
 
+// MARK: - ⚠️ DEPRECATED
+// 此文件已弃用，保留代码以便后续参考或重新启用。
+// 已被成就系统 (Achievement.swift) 替代。
+// 弃用日期: 2026/01/28
+
 import Foundation
 import SwiftUI
 
