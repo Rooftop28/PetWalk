@@ -16,6 +16,10 @@ struct HistoryView: View {
     @State private var selectedPhoto: String? = nil
     @State private var isPhotoViewerPresented = false
     
+    // 统计详情页状态
+    @State private var showStatsDetail = false
+    @State private var selectedStatsType: StatsType = .distance
+    
     // 辅助：加载本地图片
     func loadLocalImage(named name: String) -> UIImage? {
         // 1. 先尝试从 Assets 加载 (兼容旧数据)
@@ -40,14 +44,14 @@ struct HistoryView: View {
                 
                 VStack(spacing: 0) {
                     // --- 标题栏 ---
-                    // NavigationView 会自带标题栏，我们可以隐藏它或者利用它
-                    // 这里为了保持原有设计，我们隐藏系统导航栏，用自己的
-                    Text("足迹")
-                        .font(.system(size: 34, weight: .heavy, design: .rounded))
-                        .foregroundColor(.appBrown)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, 20)
-                        .padding(.top, 20)
+                    HStack {
+                        Text("足迹")
+                            .font(.system(size: 34, weight: .heavy, design: .rounded))
+                            .foregroundColor(.appBrown)
+                        Spacer()
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.top, 10) // 添加小的顶部间距，与其他页面保持一致
                     
                     // --- 滚动内容区 ---
                     ScrollView(showsIndicators: false) {
@@ -64,22 +68,34 @@ struct HistoryView: View {
                             HStack(spacing: 15) {
                                 // 计算总里程
                                 let totalDist = dataManager.records.reduce(0) { $0 + $1.distance }
-                                StatSummaryCard(
-                                    title: "总里程",
-                                    value: String(format: "%.1f", totalDist),
-                                    unit: "km",
-                                    icon: "map.fill"
-                                )
+                                Button(action: {
+                                    selectedStatsType = .distance
+                                    showStatsDetail = true
+                                }) {
+                                    StatSummaryCard(
+                                        title: "总里程",
+                                        value: String(format: "%.1f", totalDist),
+                                        unit: "km",
+                                        icon: "map.fill"
+                                    )
+                                }
+                                .buttonStyle(PlainButtonStyle())
                                 
                                 // 计算总时长 (分钟转小时)
                                 let totalMinutes = dataManager.records.reduce(0) { $0 + $1.duration }
                                 let totalHours = Double(totalMinutes) / 60.0
-                                StatSummaryCard(
-                                    title: "总时长",
-                                    value: String(format: "%.1f", totalHours),
-                                    unit: "小时",
-                                    icon: "clock.fill"
-                                )
+                                Button(action: {
+                                    selectedStatsType = .duration
+                                    showStatsDetail = true
+                                }) {
+                                    StatSummaryCard(
+                                        title: "总时长",
+                                        value: String(format: "%.1f", totalHours),
+                                        unit: "小时",
+                                        icon: "clock.fill"
+                                    )
+                                }
+                                .buttonStyle(PlainButtonStyle())
                             }
                             .padding(.horizontal, 20)
                             
@@ -149,6 +165,9 @@ struct HistoryView: View {
                 }
             }
             .navigationBarHidden(true) // 隐藏系统的 NavigationBar，使用我们自己的 Title
+        }
+        .fullScreenCover(isPresented: $showStatsDetail) {
+            StatsDetailView(type: selectedStatsType)
         }
     }
 }

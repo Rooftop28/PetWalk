@@ -11,6 +11,9 @@ class GameSystem {
     // 单例模式，或者直接作为静态工具类
     static let shared = GameSystem()
     
+    // 抽奖费用
+    let drawCost = 100
+    
     // 经济系统：1km = 10 骨头币
     func calculateBones(distanceKm: Double) -> Int {
         // 至少给 1 个币（如果是有效距离）
@@ -27,7 +30,7 @@ class GameSystem {
         
         // 基础掉落率：固定尝试一次
         if shouldDrop() {
-            if let item = rollItem() {
+            if let item = rollItem(allowLegendary: true) {
                 foundItems.append(item)
             }
         }
@@ -36,7 +39,7 @@ class GameSystem {
         var extraChanceDistance = distanceKm - 0.5
         while extraChanceDistance > 2.0 {
             if shouldDrop() {
-                if let item = rollItem() {
+                if let item = rollItem(allowLegendary: true) {
                     foundItems.append(item)
                 }
             }
@@ -46,36 +49,45 @@ class GameSystem {
         return foundItems
     }
     
+    // MARK: - 抽奖系统 (Shop/Gacha)
+    
+    func canAffordDraw(userBones: Int) -> Bool {
+        return userBones >= drawCost
+    }
+    
+    // 执行抽奖
+    // 返回抽到的物品，如果逻辑出错返回 nil
+    func drawItem() -> TreasureItem? {
+        return rollItem(allowLegendary: false)
+    }
+    
     // 判定是否掉落 (比如 60% 几率掉东西)
     private func shouldDrop() -> Bool {
         return Double.random(in: 0...1) < 0.6
     }
     
     // 判定掉落什么物品 (根据 PRD 概率表)
-    private func rollItem() -> TreasureItem? {
+    private func rollItem(allowLegendary: Bool) -> TreasureItem? {
         let roll = Double.random(in: 0...1)
         var rarity: Rarity
         
-        // 概率分布:
-        // Common: 50% (0.0 - 0.5)
-        // Uncommon: 35% (0.5 - 0.85)
-        // Rare: 14% (0.85 - 0.99)
-        // Legendary: 1% (0.99 - 1.0)
-        
-        if roll < 0.5 {
-            rarity = .common
-        } else if roll < 0.85 {
-            rarity = .uncommon
-        } else if roll < 0.99 {
-            rarity = .rare
+        if allowLegendary {
+            // 地图掉落概率
+            // Common: 50%, Uncommon: 35%, Rare: 14%, Legendary: 1%
+            if roll < 0.50 { rarity = .common }
+            else if roll < 0.85 { rarity = .uncommon }
+            else if roll < 0.99 { rarity = .rare }
+            else { rarity = .legendary }
         } else {
-            rarity = .legendary
+            // 抽奖概率 (不含 Legendary)
+            // Common: 60%, Uncommon: 30%, Rare: 10%
+            if roll < 0.60 { rarity = .common }
+            else if roll < 0.90 { rarity = .uncommon }
+            else { rarity = .rare }
         }
         
         // 从对应稀有度的物品池中随机取一个
-        // 注意：Legendary 包含 "isMapExclusive" 的物品，这里我们允许掉落所有 legendary
         let pool = TreasureItem.allItems.filter { $0.rarity == rarity }
         return pool.randomElement()
     }
 }
-

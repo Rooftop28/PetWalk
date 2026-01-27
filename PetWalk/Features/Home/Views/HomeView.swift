@@ -35,6 +35,17 @@ struct HomeView: View {
     // 设定一个每日目标
     let dailyTarget: Double = 3.0
     
+    // 计算今日遛狗总距离（只统计 App 内记录的遛狗数据）
+    var todayWalkDistance: Double {
+        let calendar = Calendar.current
+        let today = Date()
+        let todayDay = calendar.component(.day, from: today)
+        
+        return dataManager.records
+            .filter { $0.day == todayDay }  // 使用 day 字段比较
+            .reduce(0.0) { $0 + $1.distance }
+    }
+    
     // Debug 辅助函数
     #if DEBUG
     func updateMood(_ mood: PetMood) {
@@ -50,6 +61,9 @@ struct HomeView: View {
     
     // 是否显示结算页
     @State private var showSummary = false
+    
+    // 是否显示商店/抽奖页
+    @State private var showShop = false
     
     var body: some View {
         ZStack {
@@ -88,13 +102,18 @@ struct HomeView: View {
                 }
             )
         }
+        // 弹出商店页
+        .sheet(isPresented: $showShop) {
+            ShopView()
+        }
     }
     
     // MARK: - 待机模式视图 (原来的 UI)
     var idleModeView: some View {
         VStack(spacing: 0) {
             // Header
-            HStack {
+            ZStack(alignment: .leading) {
+                // 1. 左侧标题 (位置绝对独立，确保与其他页面高度一致)
                 #if DEBUG
                 Menu {
                     ForEach(PetMood.allCases, id: \.self) { mood in
@@ -116,23 +135,27 @@ struct HomeView: View {
                     .foregroundColor(.appBrown)
                 #endif
                 
-                Spacer()
-                
-                // 骨头币显示
-                HStack(spacing: 5) {
-                    Text("🦴")
-                        .font(.title2)
-                    Text("\(dataManager.userData.totalBones)")
-                        .font(.system(size: 20, weight: .bold, design: .rounded))
-                        .foregroundColor(.appBrown)
+                // 2. 右侧骨头币按钮
+                HStack {
+                    Spacer()
+                    Button(action: { showShop = true }) {
+                        HStack(spacing: 5) {
+                            Text("🦴")
+                                .font(.title2)
+                            Text("\(dataManager.userData.totalBones)")
+                                .font(.system(size: 20, weight: .bold, design: .rounded))
+                                .foregroundColor(.appBrown)
+                                .contentTransition(.numericText(value: Double(dataManager.userData.totalBones)))
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(Color.white.opacity(0.8))
+                        .clipShape(Capsule())
+                        .shadow(color: .black.opacity(0.05), radius: 5)
+                    }
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(Color.white.opacity(0.8))
-                .clipShape(Capsule())
-                .shadow(color: .black.opacity(0.05), radius: 5)
             }
-            .padding(.top, 20)
+            .padding(.top, 10) // 添加小的顶部间距，与其他页面保持一致
             .padding(.horizontal, 20)
             
             Spacer()
@@ -294,21 +317,21 @@ struct HomeView: View {
                 Circle().stroke(Color.appGreenMain.opacity(0.2), lineWidth: 15)
                 
                 Circle()
-                    .trim(from: 0, to: CGFloat(min(healthManager.currentDistance / dailyTarget, 1.0)))
+                    .trim(from: 0, to: CGFloat(min(todayWalkDistance / dailyTarget, 1.0)))
                     .stroke(
                         LinearGradient(colors: [.appGreenMain, .appGreenDark], startPoint: .topLeading, endPoint: .bottomTrailing),
                         style: StrokeStyle(lineWidth: 15, lineCap: .round)
                     )
                     .rotationEffect(.degrees(-90))
-                    .animation(.spring(), value: healthManager.currentDistance)
+                    .animation(.spring(), value: todayWalkDistance)
                 
                 VStack(spacing: 5) {
                     Text("今日目标").font(.system(size: 14, weight: .medium)).foregroundColor(.appBrown.opacity(0.6))
                     
-                    Text(String(format: "%.1fkm", healthManager.currentDistance))
+                    Text(String(format: "%.1fkm", todayWalkDistance))
                         .font(.system(size: 32, weight: .bold))
                         .foregroundColor(.appBrown)
-                        .contentTransition(.numericText(value: healthManager.currentDistance))
+                        .contentTransition(.numericText(value: todayWalkDistance))
                     
                     Text("/ \(Int(dailyTarget))km").font(.system(size: 14, weight: .medium)).foregroundColor(.appBrown.opacity(0.6))
                 }

@@ -44,22 +44,22 @@ struct TreasureItem: Identifiable, Codable, Hashable {
     // 为了方便测试，我们可以预设一些静态数据
     static let allItems: [TreasureItem] = [
         // Common
-        TreasureItem(id: "c_stick", name: "枯树枝", description: "不知道为什么，狗狗就是喜欢咬这个。", rarity: .common, iconName: "leaf", isMapExclusive: false),
-        TreasureItem(id: "c_ball", name: "破网球", description: "已经被咬得面目全非了。", rarity: .common, iconName: "tennisball", isMapExclusive: false),
-        TreasureItem(id: "c_can", name: "易拉罐", description: "虽然是垃圾，但狗狗好像很感兴趣。", rarity: .common, iconName: "trash", isMapExclusive: false),
+        TreasureItem(id: "c_stick", name: "枯树枝", description: "不知道为什么，狗狗就是喜欢咬这个。", rarity: .common, iconName: "dry_tree_branch", isMapExclusive: false),
+        TreasureItem(id: "c_ball", name: "破网球", description: "已经被咬得面目全非了。", rarity: .common, iconName: "old_torn_tennis_ball", isMapExclusive: false),
+        TreasureItem(id: "c_can", name: "易拉罐", description: "虽然是垃圾，但狗狗好像很感兴趣。", rarity: .common, iconName: "guanzi", isMapExclusive: false),
         
         // Uncommon
         TreasureItem(id: "u_stone", name: "鹅卵石", description: "一颗非常圆润的石头。", rarity: .uncommon, iconName: "circle.fill", isMapExclusive: false),
-        TreasureItem(id: "u_coin", name: "丢失的硬币", description: "看来今天运气不错！", rarity: .uncommon, iconName: "bitcoinsign.circle", isMapExclusive: false),
-        TreasureItem(id: "u_feather", name: "鸟羽毛", description: "可能是鸽子留下的礼物。", rarity: .uncommon, iconName: "feather", isMapExclusive: false),
+        TreasureItem(id: "u_coin", name: "丢失的硬币", description: "看来今天运气不错！", rarity: .uncommon, iconName: "bitcoinsign.circle.fill", isMapExclusive: false),
+        TreasureItem(id: "u_feather", name: "鸟羽毛", description: "可能是鸽子留下的礼物。", rarity: .uncommon, iconName: "leaf.fill", isMapExclusive: false),
         
         // Rare
         TreasureItem(id: "r_glass", name: "发光玻璃珠", description: "在阳光下闪闪发光。", rarity: .rare, iconName: "sparkles", isMapExclusive: false),
-        TreasureItem(id: "r_duck", name: "玩具鸭子", description: "捏一下会响的那种！", rarity: .rare, iconName: "bird", isMapExclusive: false),
+        TreasureItem(id: "r_duck", name: "玩具鸭子", description: "捏一下会响的那种！", rarity: .rare, iconName: "figure.roll", isMapExclusive: false),
         
         // Legendary (仅掉落)
-        TreasureItem(id: "l_alien", name: "外星人零件", description: "这是什么高科技？！", rarity: .legendary, iconName: "gearshape.2", isMapExclusive: true),
-        TreasureItem(id: "l_gold_bone", name: "金骨头", description: "传说中的宝物，所有狗狗的梦想。", rarity: .legendary, iconName: "crown", isMapExclusive: true)
+        TreasureItem(id: "l_alien", name: "外星人零件", description: "这是什么高科技？！", rarity: .legendary, iconName: "gearshape.2.fill", isMapExclusive: true),
+        TreasureItem(id: "l_gold_bone", name: "金骨头", description: "传说中的宝物，所有狗狗的梦想。", rarity: .legendary, iconName: "crown.fill", isMapExclusive: true)
     ]
 }
 

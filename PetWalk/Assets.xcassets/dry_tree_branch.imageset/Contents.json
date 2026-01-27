@@ -1,0 +1,21 @@
+{
+  "images" : [
+    {
+      "filename" : "anzasandygk1_A_Jellycat_style_plush_toy_object_of_a_dry_tree__db270741-c2d3-45c8-ac3f-a90370c873b7_2.png",
+      "idiom" : "universal",
+      "scale" : "1x"
+    },
+    {
+      "idiom" : "universal",
+      "scale" : "2x"
+    },
+    {
+      "idiom" : "universal",
+      "scale" : "3x"
+    }
+  ],
+  "info" : {
+    "author" : "xcode",
+    "version" : 1
+  }
+}
