@@ -36,6 +36,26 @@ struct UserData: Codable {
     var inventory: [String: Int] = [:] // 旧物品清单，已弃用
     
     // MARK: - 初始化
+    #if DEBUG
+    // 测试模式：初始 1000 骨头币，方便测试购买功能
+    static let initial = UserData(
+        totalBones: 1000,
+        lastWalkDate: nil,
+        totalWalks: 0,
+        totalDistance: 0.0,
+        currentStreak: 0,
+        maxStreak: 0,
+        lastStreakDate: nil,
+        unlockedAchievements: [],
+        ownedTitleIds: ["title_default"],
+        ownedThemeIds: ["theme_default"],
+        equippedTitleId: "title_default",
+        equippedThemeId: "theme_default",
+        avatarURL: nil,
+        avatarImageCachePath: nil,
+        inventory: [:]
+    )
+    #else
     static let initial = UserData(
         totalBones: 0,
         lastWalkDate: nil,
@@ -53,6 +73,7 @@ struct UserData: Codable {
         avatarImageCachePath: nil,
         inventory: [:]
     )
+    #endif
     
     // MARK: - 辅助方法
     

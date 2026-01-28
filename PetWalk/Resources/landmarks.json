@@ -1,0 +1,32 @@
+{
+  "landmarks": [
+    {
+      "id": "park_sample_001",
+      "name": "示例公园",
+      "latitude": 39.9042,
+      "longitude": 116.4074,
+      "radius": 300,
+      "category": "park",
+      "description": "这是一个示例公园，请在实际使用时替换为真实坐标"
+    },
+    {
+      "id": "park_sample_002",
+      "name": "中央绿地",
+      "latitude": 31.2304,
+      "longitude": 121.4737,
+      "radius": 500,
+      "category": "park",
+      "description": "上海示例公园"
+    },
+    {
+      "id": "landmark_sample_001",
+      "name": "地标广场",
+      "latitude": 39.9087,
+      "longitude": 116.3975,
+      "radius": 200,
+      "category": "landmark",
+      "description": "示例地标"
+    }
+  ],
+  "_comment": "请根据实际需要添加更多景点坐标。radius 单位为米，category 可选值: park, landmark, beach, mountain, plaza"
+}

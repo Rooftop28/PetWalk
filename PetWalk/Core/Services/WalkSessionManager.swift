@@ -85,5 +85,26 @@ class WalkSessionManager: ObservableObject {
         let seconds = Int(duration) % 60
         return String(format: "%02d:%02d", minutes, seconds)
     }
+    
+    // MARK: - 速度计算 (Level 3)
+    
+    /// 平均配速 (km/h)
+    var averageSpeed: Double {
+        guard duration > 0 else { return 0 }
+        // distance 已经是 km，duration 是秒
+        return (distance / duration) * 3600  // km/h
+    }
+    
+    /// 格式化平均配速
+    var formattedAverageSpeed: String {
+        return String(format: "%.1f km/h", averageSpeed)
+    }
+    
+    /// 当前瞬时速度 (km/h)
+    var currentSpeed: Double {
+        // 从 LocationManager 获取当前速度
+        let speedMps = locationManager.currentSpeed  // m/s
+        return max(0, speedMps * 3.6)  // 转换为 km/h
+    }
 }
 

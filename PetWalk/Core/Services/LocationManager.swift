@@ -26,6 +26,9 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     @Published var totalDistance: Double = 0
     private var lastLocation: CLLocation?
     
+    // 当前速度 (米/秒) - Level 3 速度成就
+    @Published var currentSpeed: Double = 0
+    
     override init() {
         super.init()
         locationManager.delegate = self
@@ -67,6 +70,9 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
         
         DispatchQueue.main.async {
             self.currentLocation = location
+            
+            // 更新当前速度 (location.speed 单位是 m/s，负值表示无效)
+            self.currentSpeed = max(0, location.speed)
             
             if self.isRecording {
                 // 计算距离增量
