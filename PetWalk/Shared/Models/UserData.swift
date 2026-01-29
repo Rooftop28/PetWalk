@@ -23,6 +23,11 @@ struct UserData: Codable {
     var unlockedAchievements: Set<String> = []  // 已解锁成就 ID 集合
     var revealedAchievementHints: Set<String> = []  // 已揭示线索的成就 ID
     
+    // MARK: - 社交成就统计 (Live Walk)
+    var totalLiveBroadcasts: Int = 0                // 累计直播次数 (Walker)
+    var totalLikesReceived: Int = 0                 // 累计收到的赞 (Walker)
+    var totalLiveWatchingDuration: TimeInterval = 0 // 累计观看直播时长 (seconds) (Owner)
+    
     // MARK: - 每日提醒设置
     var dailyReminderEnabled: Bool = false      // 是否启用每日提醒
     var dailyReminderTime: Date = {             // 旧单次提醒时间（兼容旧数据，默认 18:00）
@@ -95,6 +100,9 @@ struct UserData: Codable {
         petName: String = "狗狗",
         ownerNickname: String = "主人",
         hasCompletedOnboarding: Bool = false,
+        totalLiveBroadcasts: Int = 0,
+        totalLikesReceived: Int = 0,
+        totalLiveWatchingDuration: TimeInterval = 0,
         inventory: [String: Int] = [:]
     ) {
         self.totalBones = totalBones
@@ -119,6 +127,9 @@ struct UserData: Codable {
         self.petName = petName
         self.ownerNickname = ownerNickname
         self.hasCompletedOnboarding = hasCompletedOnboarding
+        self.totalLiveBroadcasts = totalLiveBroadcasts
+        self.totalLikesReceived = totalLikesReceived
+        self.totalLiveWatchingDuration = totalLiveWatchingDuration
         self.inventory = inventory
     }
     

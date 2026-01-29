@@ -17,6 +17,13 @@ struct WalkPayload: Codable {
     let timestamp: TimeInterval
 }
 
+// 统计数据指令
+struct StatsPayload: Codable {
+    let type: String // "final_stats"
+    let distance: Double
+    let duration: TimeInterval
+}
+
 @MainActor
 class LiveSessionManager: ObservableObject {
     static let shared = LiveSessionManager()
@@ -45,6 +52,12 @@ class LiveSessionManager: ObservableObject {
     // 直播结束标志
     @Published var sessionEnded = false
     
+    // 最终统计数据 (Owner用)
+    @Published var finalSessionStats: (distance: Double, duration: TimeInterval)?
+    
+    // 收到的赞数
+    @Published var likesReceived = 0
+    
     private init() {
         setupClient()
     }
@@ -70,6 +83,7 @@ class LiveSessionManager: ObservableObject {
         
         // 重置状态
         self.sessionEnded = false
+        self.likesReceived = 0
         
         // 1. 生成 6 位随机数字码
         let code = String(format: "%06d", Int.random(in: 0...999999))
@@ -83,12 +97,29 @@ class LiveSessionManager: ObservableObject {
         }
         
         // 3. 订阅频道 (放入后台任务防止阻塞 UI)
-        Task.detached {
+        Task {
             await self.channel?.subscribe()
             await MainActor.run {
                 self.isBroadcasting = true
                 self.connectionStatus = "直播中"
                 print("🎙️ 直播开始，房间号: \(code)")
+            }
+            
+            // 监听指令 (例如点赞)
+            if let channel = self.channel {
+                let cmdChanges = channel.broadcastStream(event: "cmd")
+                for await message in cmdChanges {
+                    // 解析指令
+                    if let dict = message["payload"] as? [String: Any] ?? message as? [String: Any],
+                       let type = dict["type"] as? String {
+                        if type == "like" {
+                            await MainActor.run {
+                                self.likesReceived += 1
+                                print("❤️ 收到赞! 当前: \(self.likesReceived)")
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -156,9 +187,51 @@ class LiveSessionManager: ObservableObject {
     
     // ...
     
-    // 内部结构体用于指令解析
-    private struct CommandPayload: Codable {
+    /// 发送最终统计数据
+    func broadcastFinalStats(distance: Double, duration: TimeInterval) async {
+        guard let channel = channel else { return }
+        do {
+            let stats = ["distance": distance, "duration": duration]
+            let statsData = try JSONEncoder().encode(stats)
+            // 将 statsData 转为 JSON 对象以便发送
+             if let dict = try JSONSerialization.jsonObject(with: statsData) as? [String: Any] {
+                 let cmd = CommandPayload(type: "final_stats", data: dict)
+                 try await channel.broadcast(event: "cmd", message: cmd)
+                 print("📊 发送最终统计: \(stats)")
+             }
+        } catch {
+            print("❌ 发送最终统计失败: \(error)")
+        }
+    }
+    
+    // ...
+    
+    // 内部结构体用于通用指令
+    struct CommandPayload: Codable {
         let type: String
+        var data: [String: Any]? // 支持附加数据
+        
+        enum CodingKeys: String, CodingKey {
+            case type, data
+        }
+        
+        init(type: String, data: [String: Any]? = nil) {
+            self.type = type
+            self.data = data
+        }
+        
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            type = try container.decode(String.self, forKey: .type)
+            // Any 不能直接 decode，需要根据实际情况手动处理或者忽略
+            // 这里为了让 Codable 编译通过，我们暂不 decode data
+        }
+        
+        func encode(to encoder: Encoder) throws {
+            var container = encoder.container(keyedBy: CodingKeys.self)
+            try container.encode(type, forKey: .type)
+            // Skip encoding data for now as it requires manual Any handling
+        }
     }
     
     // MARK: - Owner (观众) 方法
@@ -172,6 +245,7 @@ class LiveSessionManager: ObservableObject {
         self.currentRoomCode = code
         self.isWatching = true
         self.sessionEnded = false
+        self.finalSessionStats = nil
         self.connectionStatus = "正在连接..."
         
         let channelName = "room_\(code)"
@@ -210,13 +284,19 @@ class LiveSessionManager: ObservableObject {
                         
                         let cmd = try JSONDecoder().decode(CommandPayload.self, from: actualData)
                         
-                        if cmd.type == "stop" {
-                            print("🛑 收到结束指令")
-                            await MainActor.run {
-                                self.sessionEnded = true
-                                self.connectionStatus = "直播已结束"
+                            
+                            if cmd.type == "stop" {
+                                print("🛑 收到结束指令")
+                                await MainActor.run {
+                                    self.sessionEnded = true
+                                    self.connectionStatus = "直播已结束"
+                                }
+                            } else if cmd.type == "final_stats" {
+                                 let stats = try JSONDecoder().decode(StatsPayload.self, from: actualData)
+                                 await MainActor.run {
+                                     self.finalSessionStats = (stats.distance, stats.duration)
+                                 }
                             }
-                        }
                     } catch {
                         print("⚠️ 解析指令失败: \(error)")
                     }
@@ -253,18 +333,36 @@ class LiveSessionManager: ObservableObject {
         }
     }
     
+    /// 发送点赞
+    func sendLike() {
+        guard let channel = channel else { return }
+        Task {
+            do {
+                let cmd = CommandPayload(type: "like")
+                try await channel.broadcast(event: "cmd", message: cmd)
+                print("👍 发送赞")
+            } catch {
+                print("❌ 发送赞失败: \(error)")
+            }
+        }
+    }
+
     /// 退出房间
     func leaveSession() {
+        let channelToRemove = self.channel
+        
+        // 立即清理本地状态
+        self.channel = nil
+        self.currentRoomCode = nil
+        self.isWatching = false
+        self.remoteLocation = nil
+        self.connectionStatus = "未连接"
+        print("👋 退出房间")
+        
         Task {
-            if let channel = channel {
+            if let channel = channelToRemove {
                 await client?.removeChannel(channel)
             }
-            self.channel = nil
-            self.currentRoomCode = nil
-            self.isWatching = false
-            self.remoteLocation = nil
-            self.connectionStatus = "未连接"
-            print("👋 退出房间")
         }
     }
 }

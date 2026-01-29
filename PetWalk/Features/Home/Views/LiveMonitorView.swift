@@ -11,8 +11,10 @@ import MapKit
 /// “云遛狗” 监控页面
 struct LiveMonitorView: View {
     @Environment(\.dismiss) var dismiss
+    @ObservedObject private var dataManager = DataManager.shared
     @StateObject private var liveManager = LiveSessionManager.shared
     @State private var inputCode: String = ""
+    @State private var showLikeAnimation = false // 点赞动画
     @State private var region = MKCoordinateRegion(
         center: CLLocationCoordinate2D(latitude: 39.9042, longitude: 116.4074), // 默认北京
         span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
@@ -200,9 +202,25 @@ struct LiveMonitorView: View {
                     
                     Spacer()
                     
-                    // 占位
-                    Image(systemName: "circle")
-                        .hidden()
+                    // 点赞按钮
+                    Button(action: {
+                        liveManager.sendLike()
+                        withAnimation {
+                            showLikeAnimation = true
+                        }
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+                            showLikeAnimation = false
+                        }
+                    }) {
+                        Image(systemName: "heart.fill")
+                            .font(.title)
+                            .foregroundColor(.pink)
+                            .padding(10)
+                            .background(Color.white)
+                            .clipShape(Circle())
+                            .shadow(radius: 3)
+                            .scaleEffect(showLikeAnimation ? 1.5 : 1.0)
+                    }
                 }
                 .padding()
                 Spacer()
@@ -214,32 +232,58 @@ struct LiveMonitorView: View {
                     HStack(spacing: 30) {
                         VStack {
                             Text("速度")
-                                .font(.caption)
-                                .foregroundColor(.gray)
+                            .font(.caption)
+                            .foregroundColor(.gray)
                             Text(String(format: "%.1f km/h", payload.speed * 3.6))
-                                .font(.title2)
-                                .fontWeight(.bold)
-                                .foregroundColor(.appBrown)
+                            .font(.title2)
+                            .fontWeight(.bold)
+                            .foregroundColor(.appBrown)
                         }
                         
                         Divider()
-                            .frame(height: 40)
+                        .frame(height: 40)
                         
                         VStack {
                             Text("状态")
-                                .font(.caption)
-                                .foregroundColor(.gray)
+                            .font(.caption)
+                            .foregroundColor(.gray)
                             Text("正在遛狗")
-                                .font(.title2)
-                                .fontWeight(.bold)
-                                .foregroundColor(.appGreenMain)
+                            .font(.title2)
+                            .fontWeight(.bold)
+                            .foregroundColor(.appGreenMain)
+                        }
+                    }
+                } else if let stats = liveManager.finalSessionStats {
+                    // 显示最终统计
+                    HStack(spacing: 30) {
+                        VStack {
+                            Text("总里程")
+                            .font(.caption)
+                            .foregroundColor(.gray)
+                            Text(String(format: "%.2f km", stats.distance))
+                            .font(.title2)
+                            .fontWeight(.bold)
+                            .foregroundColor(.appBrown)
+                        }
+                        
+                        Divider()
+                        .frame(height: 40)
+                        
+                        VStack {
+                            Text("总时长")
+                            .font(.caption)
+                            .foregroundColor(.gray)
+                            Text(formatDuration(stats.duration))
+                            .font(.title2)
+                            .fontWeight(.bold)
+                            .foregroundColor(.appBrown)
                         }
                     }
                 } else {
                     Text("等待信号中...")
-                        .font(.headline)
-                        .foregroundColor(.gray)
-                        .padding()
+                    .font(.headline)
+                    .foregroundColor(.gray)
+                    .padding()
                 }
             }
             .padding()
@@ -248,6 +292,52 @@ struct LiveMonitorView: View {
             .padding()
             .shadow(radius: 10)
         }
+        .onChange(of: liveManager.finalSessionStats?.duration) { _, _ in
+             if let stats = liveManager.finalSessionStats {
+                 // 保存数据到 Owner 的 UserData
+                 dataManager.userData.totalDistance += stats.distance
+                 dataManager.userData.totalWalks += 1
+                 // 简单估算观看时长等于直播时长（或者可以更精确地统计实际观看时间）
+                 dataManager.userData.totalLiveWatchingDuration += stats.duration
+                 
+                 // 检测观众成就
+                 let unlocked = AchievementManager.shared.checkWatcherAchievements(userData: &dataManager.userData)
+                 if !unlocked.isEmpty {
+                     // 可以弹窗显示成就解锁 (TODO)
+                     print("🎉 解锁观众成就: \(unlocked.map { $0.name })")
+                 }
+                 
+                 // 保存用户数据更改
+                 dataManager.saveUserData()
+                 
+                 // 归档到历史记录
+                 let now = Date()
+                 let calendar = Calendar.current
+                 
+                 let record = WalkRecord(
+                    day: calendar.component(.day, from: now),
+                    date: now.formatted(date: .numeric, time: .omitted),
+                    time: now.formatted(date: .omitted, time: .shortened),
+                    distance: stats.distance,
+                    duration: Int(stats.duration / 60),
+                    mood: "happy", // 默认心情
+                    imageName: nil,
+                    route: nil, // 云遛狗暂不保存轨迹点
+                    itemsFound: nil,
+                    bonesEarned: Int(stats.distance * 10), // 简单计算奖励
+                    isCloudWalk: true
+                 )
+                 
+                 DataManager.shared.addRecord(record)
+                 print("💾 云遛狗记录已归档")
+             }
+        }
+    }
+    
+    func formatDuration(_ duration: TimeInterval) -> String {
+        let minutes = Int(duration) / 60
+        let seconds = Int(duration) % 60
+        return String(format: "%02d:%02d", minutes, seconds)
     }
     
     private func joinRoom() {

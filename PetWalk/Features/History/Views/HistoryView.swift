@@ -10,7 +10,9 @@ struct HistoryView: View {
     // 1. 引入数据管理器 (Source of Truth)
     // 这里使用 @StateObject 初始化，确保数据只属于这个 View 的生命周期
     // 如果你希望整个 App 共享同一个数据源，也可以改用 @ObservedObject 并从外部传入
-    @StateObject private var dataManager = DataManager()
+    // 1. 引入数据管理器 (Source of Truth)
+    // 改用 @ObservedObject 并使用单例，确保数据同步
+    @ObservedObject private var dataManager = DataManager.shared
     
     // 2. 交互状态：用于大图查看器
     @State private var selectedPhoto: String? = nil

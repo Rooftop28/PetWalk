@@ -24,6 +24,10 @@ struct WalkSessionData {
     var spinCount: Int = 0                // 原地转圈次数
     var isClosedLoop: Bool = false        // 是否形成闭环
     var returnSpeedRatio: Double = 0      // 返程速度与去程速度的比值
+    
+    // 社交相关
+    var wasBroadcasting: Bool = false     // 是否进行了直播
+    var likesReceived: Int = 0            // 收到的赞数
 }
 
 // MARK: - 天气信息
@@ -65,6 +69,7 @@ class AchievementManager {
         newlyUnlocked.append(contentsOf: checkPerformanceAchievements(userData: &userData, sessionData: sessionData))
         newlyUnlocked.append(contentsOf: checkEnvironmentAchievements(userData: &userData, sessionData: sessionData))
         newlyUnlocked.append(contentsOf: checkContextAchievements(userData: &userData, sessionData: sessionData))
+        newlyUnlocked.append(contentsOf: checkSocialAchievements(userData: &userData, sessionData: sessionData))
         
         return newlyUnlocked
     }
@@ -380,6 +385,45 @@ class AchievementManager {
         return unlocked
     }
     
+    // MARK: - 社交成就检测 (Level 5)
+    
+    private func checkSocialAchievements(
+        userData: inout UserData,
+        sessionData: WalkSessionData
+    ) -> [Achievement] {
+        var unlocked: [Achievement] = []
+        
+        // 只有开启直播才算
+        if sessionData.wasBroadcasting {
+            userData.totalLiveBroadcasts += 1
+            userData.totalLikesReceived += sessionData.likesReceived
+        }
+        
+        // 金牌保姆 (直播10次)
+        if userData.totalLiveBroadcasts >= 10 {
+            unlocked.append(contentsOf: tryUnlock("social_nanny_10", userData: &userData))
+        }
+        
+        // 使命必达 (收到5个赞)
+        if userData.totalLikesReceived >= 5 {
+            unlocked.append(contentsOf: tryUnlock("social_trustworthy", userData: &userData))
+        }
+        
+        return unlocked
+    }
+    
+    /// 观众端成就检测 (由于不在常规遛狗流程，需单独调用)
+    func checkWatcherAchievements(userData: inout UserData) -> [Achievement] {
+        var unlocked: [Achievement] = []
+        
+        // 云遛狗 (观看30分钟)
+        if userData.totalLiveWatchingDuration >= 1800 {
+            unlocked.append(contentsOf: tryUnlock("social_cloud_walker", userData: &userData))
+        }
+        
+        return unlocked
+    }
+    
     // MARK: - 累计遛狗时长
     
     private let totalDurationKey = "totalWalkDuration"
@@ -502,6 +546,18 @@ class AchievementManager {
         case .context:
             // 复杂上下文成就（一次性）
             return (userData.isAchievementUnlocked(achievement.id) ? 1 : 0, 1)
+            
+        case .social:
+            switch achievement.id {
+            case "social_nanny_10":
+                return (userData.totalLiveBroadcasts, achievement.requirement)
+            case "social_trustworthy":
+                return (userData.totalLikesReceived, achievement.requirement)
+            case "social_cloud_walker":
+                return (Int(userData.totalLiveWatchingDuration), achievement.requirement)
+            default:
+                return (userData.isAchievementUnlocked(achievement.id) ? 1 : 0, 1)
+            }
         }
     }
     

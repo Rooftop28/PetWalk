@@ -17,6 +17,7 @@ enum AchievementCategory: String, Codable, CaseIterable {
     case performance  // 速度/强度类 (Level 3)
     case environment  // 环境/天气类 (Level 3)
     case context      // 复杂上下文类 (Level 4)
+    case social       // 社交互动类 (Level 5)
     
     var title: String {
         switch self {
@@ -27,6 +28,7 @@ enum AchievementCategory: String, Codable, CaseIterable {
         case .performance: return "速度挑战"
         case .environment: return "天气达人"
         case .context: return "特殊成就"
+        case .social: return "社交达人"
         }
     }
     
@@ -39,6 +41,7 @@ enum AchievementCategory: String, Codable, CaseIterable {
         case .performance: return "speedometer"
         case .environment: return "cloud.sun.fill"
         case .context: return "star.fill"
+        case .social: return "person.2.fill"
         }
     }
     
@@ -51,6 +54,7 @@ enum AchievementCategory: String, Codable, CaseIterable {
         case .performance: return .cyan
         case .environment: return .teal
         case .context: return .purple
+        case .social: return .pink
         }
     }
 }
@@ -558,6 +562,37 @@ struct Achievement: Identifiable, Codable, Hashable {
             isSecret: true,
             minDuration: 1800,
             maxDistance: 0.5
+        ),
+        
+        // ============ 社交互动类 (Level 5) ============
+        Achievement(
+            id: "social_nanny_10",
+            name: "金牌保姆",
+            description: "使用代遛/直播模式累计遛狗 10 次。你是主人最信赖的伙伴！",
+            category: .social,
+            requirement: 10,
+            rewardBones: 100,
+            iconSymbol: "video.fill",
+            rarity: .rare
+        ),
+        Achievement(
+            id: "social_trustworthy",
+            name: "使命必达",
+            description: "在直播遛狗过程中累计收到 5 个赞。专业的服务，五星的好评！",
+            category: .social,
+            requirement: 5,
+            rewardBones: 80,
+            iconSymbol: "hand.thumbsup.fill",
+            rarity: .rare
+        ),
+        Achievement(
+            id: "social_cloud_walker",
+            name: "云遛狗",
+            description: "通过云遛狗累计观看达到 30 分钟。即使相隔千里，心也在一起。",
+            category: .social,
+            requirement: 1800, // 30分钟
+            rewardBones: 60,
+            iconSymbol: "cloud.fill"
         )
     ]
     

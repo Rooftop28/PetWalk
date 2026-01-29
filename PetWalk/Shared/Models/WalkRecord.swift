@@ -30,4 +30,7 @@ struct WalkRecord: Identifiable, Codable {
     // Gamification (v1.1)
     var itemsFound: [String]? // 存储 TreasureItem 的 ID
     var bonesEarned: Int?     // 本次获得的骨头币
+    
+    // Cloud Walk (v1.2)
+    var isCloudWalk: Bool?    // 是否为云遛狗记录
 }

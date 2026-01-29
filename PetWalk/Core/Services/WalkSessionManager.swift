@@ -141,13 +141,21 @@ class WalkSessionManager: ObservableObject {
         let poiResult = POIDetector.shared.endSession()
         LandmarkManager.shared.endSession()
         
+        // 捕获直播数据
+        let wasBroadcasting = LiveSessionManager.shared.isBroadcasting
+        let likes = LiveSessionManager.shared.likesReceived
+        
         // 自动停止直播 (如果有)
-        if LiveSessionManager.shared.isBroadcasting {
-            LiveSessionManager.shared.stopBroadcast()
+        if wasBroadcasting {
+            // 发送最终统计
+            Task {
+                await LiveSessionManager.shared.broadcastFinalStats(distance: distance, duration: duration)
+                LiveSessionManager.shared.stopBroadcast()
+            }
         }
         
         // 构建会话数据
-        let sessionData = WalkSessionData(
+        var sessionData = WalkSessionData(
             distance: distance,
             duration: duration,
             startTime: startTime ?? Date(),
@@ -158,8 +166,13 @@ class WalkSessionManager: ObservableObject {
             homeLoopCount: poiResult.homeLoops
         )
         
+        // 填充社交数据
+        sessionData.wasBroadcasting = wasBroadcasting
+        sessionData.likesReceived = likes
+        
         print("WalkSessionManager: 遛狗结束 - 距离: \(String(format: "%.2f", distance))km, 时长: \(formattedDuration), 配速: \(formattedAverageSpeed)")
         print("WalkSessionManager: 路过餐厅: \(poiResult.passedRestaurants), 绕圈: \(poiResult.homeLoops)")
+        print("WalkSessionManager: 直播: \(wasBroadcasting), 获赞: \(likes)")
         
         return sessionData
     }
