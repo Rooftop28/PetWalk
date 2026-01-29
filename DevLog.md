@@ -595,3 +595,50 @@
 ---
 *记录人: Cursor AI Assistant*
 *时间: 2026-01-28*
+
+<br>
+
+# 📅 开发日志 (Dev Log) - 2026/01/29
+
+## 🎯 核心目标
+实现"云遛狗"（Live Walk Sharing）功能，允许用户通过房间号实时分享遛狗位置给亲友观看。
+
+## ✅ 今日完成事项 (Completed)
+
+### 1. 📡 云遛狗核心功能 (Live Walk Sharing)
+- **LiveSessionManager**: 基于 Supabase Realtime Broadcast 实现的核心服务：
+  - 支持创建房间（生成 6 位随机码）
+  - 支持加入房间（观众模式）
+  - 实时高频坐标传输（经纬度、速度、时间戳）
+  - 健壮的连接状态管理和错误处理
+- **SupabaseConfig**: 集成了项目配置和 Anon Key 管理。
+
+### 2. 📱 UI 实现
+- **HomeView**:
+  - 遛狗模式下新增"开启直播"浮窗按钮
+  - 闲置模式下新增"加入云遛狗"入口
+- **LiveMonitorView**: 全新的观众端监控页面：
+  - 实时地图轨迹绘制（绿色小狗头像）
+  - 速度和状态仪表盘
+  - 房间号和连接状态显示
+  - 下拉/右滑手势关闭支持
+
+### 3. 🛠 关键问题修复
+- **Supabase 兼容性**:
+  - 升级 `RealtimeChannelV2` 适配
+  - 修复闭包式配置 (`receiveOwnBroadcasts`)
+  - 解决 JSON Envelope 解析问题（自动拆包 `payload`）
+- **UI/UX 优化**:
+  - 修复地图更新时的 "Modifying state during view update" 崩溃（利用 `DispatchQueue.main.async`）
+  - 优化弹窗布局（限制分割线高度）
+  - 增加手动断开和自动断开逻辑
+- **流程闭环**:
+  - **自动结束**: 主播结束遛狗时自动广播 "stop" 信号
+  - **观众联动**: 观众端收到停止信号后自动弹出提示并在一秒后关闭页面
+
+## 📝 总结
+今日成功从零实现了基于 Supabase 的实时位置共享功能。攻克了 SDK 版本兼容性、高频数据传输解析、主线程渲染冲突等多个技术难点。现在的"云遛狗"功能具备了即时性强、交互流畅、自动化程度高的特点，为主播和观众提供了丝滑的体验。
+
+---
+*记录人: Cursor AI Assistant*
+*时间: 2026-01-29*

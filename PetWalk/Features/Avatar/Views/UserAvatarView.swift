@@ -27,51 +27,69 @@ struct UserAvatarView: View {
     var body: some View {
         VStack(spacing: 8) {
             // 头像
-            Button(action: { onTap?() }) {
-                ZStack {
-                    // 背景圆圈
-                    Circle()
-                        .fill(Color.white)
-                        .frame(width: avatarSize + 8, height: avatarSize + 8)
-                        .shadow(color: Color.appGreenMain.opacity(0.3), radius: 8)
-                    
-                    // 头像内容
-                    if avatarManager.isLoading {
-                        // 加载中
-                        ProgressView()
+            ZStack {
+                // 背景圆圈
+                Circle()
+                    .fill(Color.white)
+                    .frame(width: avatarSize + 8, height: avatarSize + 8)
+                    .shadow(color: Color.appGreenMain.opacity(0.3), radius: 8)
+                
+                // 头像内容
+                if avatarManager.isLoading {
+                    // 加载中
+                    ProgressView()
+                        .frame(width: avatarSize, height: avatarSize)
+                } else if let image = avatarManager.avatarImage {
+                    // 有头像
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: avatarSize, height: avatarSize)
+                        .clipShape(Circle())
+                } else if avatarManager.hasAvatar {
+                    // 有头像数据但图片加载失败 -> 点击重试
+                    ZStack {
+                        Circle()
+                            .fill(Color.gray.opacity(0.1))
                             .frame(width: avatarSize, height: avatarSize)
-                    } else if let image = avatarManager.avatarImage {
-                        // 有头像
-                        Image(uiImage: image)
-                            .resizable()
-                            .scaledToFill()
-                            .frame(width: avatarSize, height: avatarSize)
-                            .clipShape(Circle())
-                    } else {
-                        // 默认占位图
-                        defaultAvatarView
+                        Image(systemName: "arrow.clockwise")
+                            .font(.system(size: avatarSize * 0.4))
+                            .foregroundColor(.gray)
                     }
-                    
-                    // 编辑图标（右下角）
-                    VStack {
-                        Spacer()
-                        HStack {
-                            Spacer()
-                            Image(systemName: "pencil.circle.fill")
-                                .font(.system(size: 20))
-                                .foregroundColor(.appGreenMain)
-                                .background(Circle().fill(Color.white).frame(width: 18, height: 18))
-                        }
+                    .onTapGesture {
+                        // 刷新逻辑还是保留点击触发，但注意这里可能会被外层 PhotoPicker 拦截
+                        // 如果是 PhotosPicker 情况，这里其实不需要刷新逻辑，或者 PhotosPicker 会覆盖它
+                        avatarManager.refreshAvatar()
                     }
-                    .frame(width: avatarSize, height: avatarSize)
+                } else {
+                    // 默认占位图
+                    defaultAvatarView
                 }
-                .scaleEffect(isAnimating ? 1.02 : 0.98)
-                .animation(
-                    Animation.easeInOut(duration: 2.0).repeatForever(autoreverses: true),
-                    value: isAnimating
-                )
+                
+                // 编辑图标（右下角）
+                VStack {
+                    Spacer()
+                    HStack {
+                        Spacer()
+                        Image(systemName: "pencil.circle.fill")
+                            .font(.system(size: 20))
+                            .foregroundColor(.appGreenMain)
+                            .background(Circle().fill(Color.white).frame(width: 18, height: 18))
+                    }
+                }
+                .frame(width: avatarSize, height: avatarSize)
             }
-            .buttonStyle(PlainButtonStyle())
+            .scaleEffect(isAnimating ? 1.02 : 0.98)
+            .animation(
+                Animation.easeInOut(duration: 2.0).repeatForever(autoreverses: true),
+                value: isAnimating
+            )
+            // 如果提供了 onTap，则添加点击手势；否则不添加（让外层处理）
+            .onTapGesture {
+                if let action = onTap {
+                    action()
+                }
+            }
             
             // 称号标签
             if showTitle {

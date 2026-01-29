@@ -7,6 +7,7 @@
 
 import SwiftUI
 import PhotosUI
+import UIKit
 
 struct WalkSummaryView: View {
     // 输入参数：完整的遛狗会话数据
@@ -27,6 +28,7 @@ struct WalkSummaryView: View {
     @State private var mood: String = "happy" // happy, tired, normal
     @State private var selectedItem: PhotosPickerItem?
     @State private var selectedImage: UIImage?
+    @State private var showCamera = false
     
     // 动画
     @State private var isVisible = false
@@ -161,40 +163,71 @@ struct WalkSummaryView: View {
                             .font(.headline)
                             .foregroundColor(.appBrown)
                         
-                        PhotosPicker(selection: $selectedItem, matching: .images) {
-                            ZStack {
-                                RoundedRectangle(cornerRadius: 20)
-                                    .fill(Color.white)
+                        // 照片预览区域
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 20)
+                                .fill(Color.white)
+                                .frame(height: 200)
+                                .shadow(color: .black.opacity(0.05), radius: 10)
+                            
+                            if let image = selectedImage {
+                                Image(uiImage: image)
+                                    .resizable()
+                                    .scaledToFill()
                                     .frame(height: 200)
-                                    .shadow(color: .black.opacity(0.05), radius: 10)
-                                
-                                if let image = selectedImage {
-                                    Image(uiImage: image)
-                                        .resizable()
-                                        .scaledToFill()
-                                        .frame(height: 200)
-                                        .clipShape(RoundedRectangle(cornerRadius: 20))
-                                } else {
-                                    VStack(spacing: 10) {
-                                        Image(systemName: "camera.fill")
-                                            .font(.system(size: 40))
-                                            .foregroundColor(.appGreenMain)
-                                        Text("点击添加照片")
-                                            .foregroundColor(.gray)
+                                    .clipShape(RoundedRectangle(cornerRadius: 20))
+                            } else {
+                                VStack(spacing: 10) {
+                                    Image(systemName: "camera.fill")
+                                        .font(.system(size: 40))
+                                        .foregroundColor(.appGreenMain)
+                                    Text("从相册选择或拍照添加")
+                                        .foregroundColor(.gray)
+                                        .font(.subheadline)
+                                }
+                            }
+                        }
+                        
+                        // 从相册选择 / 拍照 两个入口
+                        HStack(spacing: 20) {
+                            PhotosPicker(selection: $selectedItem, matching: .images) {
+                                Label("从相册选择", systemImage: "photo.on.rectangle.angled")
+                                    .font(.subheadline)
+                                    .fontWeight(.medium)
+                                    .foregroundColor(.white)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 12)
+                                    .background(Color.appGreenMain)
+                                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                            }
+                            .onChange(of: selectedItem) { _, newItem in
+                                Task {
+                                    if let data = try? await newItem?.loadTransferable(type: Data.self),
+                                       let image = UIImage(data: data) {
+                                        self.selectedImage = image
                                     }
                                 }
                             }
-                        }
-                        .onChange(of: selectedItem) { _, newItem in
-                            Task {
-                                if let data = try? await newItem?.loadTransferable(type: Data.self),
-                                   let image = UIImage(data: data) {
-                                    self.selectedImage = image
-                                }
+                            
+                            Button {
+                                showCamera = true
+                            } label: {
+                                Label("拍照", systemImage: "camera.fill")
+                                    .font(.subheadline)
+                                    .fontWeight(.medium)
+                                    .foregroundColor(.white)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 12)
+                                    .background(Color.appGreenMain)
+                                    .clipShape(RoundedRectangle(cornerRadius: 12))
                             }
+                            .disabled(!UIImagePickerController.isSourceTypeAvailable(.camera))
                         }
                     }
                     .padding(.horizontal)
+                    .fullScreenCover(isPresented: $showCamera) {
+                        CameraImagePicker(image: $selectedImage, isPresented: $showCamera)
+                    }
                     
                     Spacer(minLength: 50)
                     
@@ -457,6 +490,48 @@ struct MoodButton: View {
                 Text(mood.capitalized)
                     .font(.caption)
                     .foregroundColor(isSelected ? color : .gray)
+            }
+        }
+    }
+}
+
+// MARK: - 摄像头拍照 (UIImagePickerController 包装)
+struct CameraImagePicker: UIViewControllerRepresentable {
+    @Binding var image: UIImage?
+    @Binding var isPresented: Bool
+    
+    func makeUIViewController(context: Context) -> UIImagePickerController {
+        let picker = UIImagePickerController()
+        picker.sourceType = .camera
+        picker.delegate = context.coordinator
+        return picker
+    }
+    
+    func updateUIViewController(_ uiViewController: UIImagePickerController, context: Context) {}
+    
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+    
+    class Coordinator: NSObject, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
+        let parent: CameraImagePicker
+        
+        init(_ parent: CameraImagePicker) {
+            self.parent = parent
+        }
+        
+        func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]) {
+            if let img = info[.originalImage] as? UIImage {
+                self.parent.image = img
+            }
+            DispatchQueue.main.async { [weak self] in
+                self?.parent.isPresented = false
+            }
+        }
+        
+        func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
+            DispatchQueue.main.async { [weak self] in
+                self?.parent.isPresented = false
             }
         }
     }

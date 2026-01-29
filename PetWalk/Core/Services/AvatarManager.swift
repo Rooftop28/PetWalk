@@ -20,14 +20,8 @@ class AvatarManager: ObservableObject {
     @Published var isLoading: Bool = false
     @Published var hasAvatar: Bool = false
     
-    // MARK: - Ready Player Me 配置
-    // 可以在这里配置你的 Ready Player Me subdomain
-    static let rpmSubdomain = "demo" // TODO: 替换为你的 subdomain
-    
-    /// Ready Player Me 头像创建器 URL
-    var avatarCreatorURL: URL {
-        URL(string: "https://\(AvatarManager.rpmSubdomain).readyplayer.me/avatar?frameApi")!
-    }
+    // MARK: - 初始化
+    // ...
     
     // MARK: - 私有属性
     private var cancellables = Set<AnyCancellable>()
@@ -38,110 +32,14 @@ class AvatarManager: ObservableObject {
         loadAvatarFromCache()
     }
     
-    // MARK: - 头像 URL 处理
+    // MARK: - 头像处理
     
-    /// 从 Ready Player Me 的 GLB URL 转换为 2D 渲染图 URL
-    /// - Parameter glbURL: GLB 模型 URL (如 https://models.readyplayer.me/{id}.glb)
-    /// - Returns: 2D 渲染图 URL
-    func getRenderURL(from glbURL: String) -> URL? {
-        // GLB URL 格式: https://models.readyplayer.me/{avatar_id}.glb
-        // 渲染 URL 格式: https://models.readyplayer.me/{avatar_id}.png?scene=fullbody-portrait-v1
-        
-        guard let url = URL(string: glbURL) else { return nil }
-        
-        // 提取 avatar_id
-        let pathWithoutExtension = url.deletingPathExtension().lastPathComponent
-        
-        // 构建渲染 URL
-        let renderURLString = "https://models.readyplayer.me/\(pathWithoutExtension).png?scene=fullbody-portrait-v1&quality=high"
-        return URL(string: renderURLString)
-    }
-    
-    /// 保存头像 URL 并下载图片 (同步版本，用于向后兼容)
-    /// - Parameter url: Ready Player Me 返回的头像 URL
-    func saveAvatarURL(_ url: String) {
-        var userData = DataManager.shared.userData
-        userData.avatarURL = url
-        DataManager.shared.updateUserData(userData)
-        
-        hasAvatar = true
-        
-        // 下载并缓存头像图片
-        downloadAndCacheAvatar(from: url)
-    }
-    
-    /// 保存头像 URL 并等待下载完成 (异步版本)
-    /// - Parameter url: Ready Player Me 返回的头像 URL
-    func saveAvatarURLAsync(_ url: String) async {
-        print("AvatarManager: 开始异步保存头像 - \(url)")
-        
-        // 保存 URL
-        var userData = DataManager.shared.userData
-        userData.avatarURL = url
-        DataManager.shared.updateUserData(userData)
-        hasAvatar = true
-        
-        // 异步下载图片
-        await downloadAndCacheAvatarAsync(from: url)
-    }
-    
-    /// 异步下载并缓存头像图片
-    private func downloadAndCacheAvatarAsync(from urlString: String) async {
-        guard let renderURL = getRenderURL(from: urlString) else {
-            print("AvatarManager: 无法生成渲染 URL from \(urlString)")
-            return
-        }
-        
-        print("AvatarManager: 开始下载头像图片 - \(renderURL)")
-        isLoading = true
-        
-        do {
-            let (data, response) = try await URLSession.shared.data(from: renderURL)
-            
-            if let httpResponse = response as? HTTPURLResponse {
-                print("AvatarManager: HTTP 状态码 \(httpResponse.statusCode)")
-            }
-            
-            if let image = UIImage(data: data) {
-                self.avatarImage = image
-                self.saveImageToCache(image)
-                print("AvatarManager: 头像下载成功并已缓存")
-            } else {
-                print("AvatarManager: 无法将数据转换为图片")
-            }
-        } catch {
-            print("AvatarManager: 下载头像失败 - \(error)")
-        }
-        
-        isLoading = false
-    }
-    
-    /// 下载并缓存头像图片 (Combine 版本)
-    private func downloadAndCacheAvatar(from urlString: String) {
-        guard let renderURL = getRenderURL(from: urlString) else {
-            print("AvatarManager: 无法生成渲染 URL")
-            return
-        }
-        
-        isLoading = true
-        
-        URLSession.shared.dataTaskPublisher(for: renderURL)
-            .map { UIImage(data: $0.data) }
-            .receive(on: DispatchQueue.main)
-            .sink(receiveCompletion: { [weak self] completion in
-                self?.isLoading = false
-                if case .failure(let error) = completion {
-                    print("AvatarManager: 下载头像失败 - \(error)")
-                }
-            }, receiveValue: { [weak self] image in
-                self?.avatarImage = image
-                
-                // 保存到本地
-                if let image = image {
-                    self?.saveImageToCache(image)
-                }
-            })
-            .store(in: &cancellables)
+    /// 保存从相册选择并处理过（已抠图）的头像
+    @MainActor
+    func saveUserAvatar(_ image: UIImage) {
+        self.avatarImage = image
+        self.hasAvatar = true
+        self.saveImageToCache(image)
     }
     
     /// 保存图片到本地缓存
@@ -170,9 +68,6 @@ class AvatarManager: ObservableObject {
     private func loadAvatarFromCache() {
         let userData = DataManager.shared.userData
         
-        // 检查是否有头像 URL
-        hasAvatar = userData.avatarURL != nil
-        
         // 尝试从缓存加载
         if let cachePath = userData.avatarImageCachePath {
             let url = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
@@ -181,21 +76,18 @@ class AvatarManager: ObservableObject {
             if let data = try? Data(contentsOf: url),
                let image = UIImage(data: data) {
                 avatarImage = image
+                hasAvatar = true
                 print("AvatarManager: 从缓存加载头像成功")
                 return
             }
         }
         
-        // 如果缓存不存在但有 URL，重新下载
-        if let avatarURL = userData.avatarURL {
-            downloadAndCacheAvatar(from: avatarURL)
-        }
+        hasAvatar = false
     }
     
-    /// 刷新头像（重新下载）
+    /// 刷新头像
     func refreshAvatar() {
-        guard let avatarURL = DataManager.shared.userData.avatarURL else { return }
-        downloadAndCacheAvatar(from: avatarURL)
+        loadAvatarFromCache()
     }
     
     /// 删除头像

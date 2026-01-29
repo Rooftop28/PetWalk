@@ -34,10 +34,9 @@ class AppInitializer: ObservableObject {
     
     // MARK: - 初始化任务权重（用于计算进度）
     private let taskWeights: [String: Double] = [
-        "userData": 0.3,
-        "theme": 0.2,
-        "health": 0.3,
-        "webview": 0.2  // WebView 预热是非阻塞的后台任务
+        "userData": 0.4,
+        "theme": 0.3,
+        "health": 0.3
     ]
     
     private init() {}
@@ -60,9 +59,6 @@ class AppInitializer: ObservableObject {
         
         // 3. 请求 HealthKit 数据
         await requestHealthData()
-        
-        // 4. 启动 WebView 预热（非阻塞，后台进行）
-        startWebViewPreload()
         
         // 完成所有必要任务
         await completeInitialization()
@@ -115,16 +111,7 @@ class AppInitializer: ObservableObject {
         updateProgress(for: "health")
     }
     
-    // MARK: - 任务 4: 预热 WebView（后台非阻塞）
-    
-    private func startWebViewPreload() {
-        // WebView 预热在后台进行，不阻塞启动流程
-        Task {
-            updateStatus("正在准备头像编辑器...")
-            await WebViewPreloader.shared.preloadAvatarCreator()
-            updateProgress(for: "webview")
-        }
-    }
+
     
     // MARK: - 完成初始化
     

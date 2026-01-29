@@ -25,12 +25,14 @@ struct UserData: Codable {
     
     // MARK: - 每日提醒设置
     var dailyReminderEnabled: Bool = false      // 是否启用每日提醒
-    var dailyReminderTime: Date = {             // 提醒时间（默认 18:00）
+    var dailyReminderTime: Date = {             // 旧单次提醒时间（兼容旧数据，默认 18:00）
         var components = DateComponents()
         components.hour = 18
         components.minute = 0
         return Calendar.current.date(from: components) ?? Date()
     }()
+    /// 多个提醒时间（每天可设置多个，如早/中/晚）
+    var dailyReminderTimes: [Date] = []
     var lastNudgedFriends: [String: Date] = [:] // 上次催促好友的时间（friendID: Date）
     
     // MARK: - 奖励系统（称号 & 主题）
@@ -42,6 +44,11 @@ struct UserData: Codable {
     // MARK: - 用户形象 (Ready Player Me)
     var avatarURL: String?           // Ready Player Me 头像 URL
     var avatarImageCachePath: String? // 本地缓存的头像图片路径
+    
+    // MARK: - 个性化称呼 (Onboarding)
+    var petName: String = "狗狗"
+    var ownerNickname: String = "主人"
+    var hasCompletedOnboarding: Bool = false
     
     // MARK: - DEPRECATED (保留以兼容旧数据)
     var inventory: [String: Int] = [:] // 旧物品清单，已弃用
@@ -77,6 +84,7 @@ struct UserData: Codable {
             components.minute = 0
             return Calendar.current.date(from: components) ?? Date()
         }(),
+        dailyReminderTimes: [Date] = [],
         lastNudgedFriends: [String: Date] = [:],
         ownedTitleIds: Set<String> = ["title_default"],
         ownedThemeIds: Set<String> = ["theme_default"],
@@ -84,6 +92,9 @@ struct UserData: Codable {
         equippedThemeId: String = "theme_default",
         avatarURL: String? = nil,
         avatarImageCachePath: String? = nil,
+        petName: String = "狗狗",
+        ownerNickname: String = "主人",
+        hasCompletedOnboarding: Bool = false,
         inventory: [String: Int] = [:]
     ) {
         self.totalBones = totalBones
@@ -97,6 +108,7 @@ struct UserData: Codable {
         self.revealedAchievementHints = revealedAchievementHints
         self.dailyReminderEnabled = dailyReminderEnabled
         self.dailyReminderTime = dailyReminderTime
+        self.dailyReminderTimes = dailyReminderTimes
         self.lastNudgedFriends = lastNudgedFriends
         self.ownedTitleIds = ownedTitleIds
         self.ownedThemeIds = ownedThemeIds
@@ -104,6 +116,9 @@ struct UserData: Codable {
         self.equippedThemeId = equippedThemeId
         self.avatarURL = avatarURL
         self.avatarImageCachePath = avatarImageCachePath
+        self.petName = petName
+        self.ownerNickname = ownerNickname
+        self.hasCompletedOnboarding = hasCompletedOnboarding
         self.inventory = inventory
     }
     

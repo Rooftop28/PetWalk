@@ -28,17 +28,36 @@ class DataManager: ObservableObject {
     // MARK: - UserData 管理
     func updateUserData(_ newData: UserData) {
         self.userData = newData
-        saveUserData()
+        // 编码和写盘都放到后台任务中，彻底释放主线程
+        let url = getDocumentsDirectory().appendingPathComponent(userDataFileName)
+        
+        Task.detached(priority: .userInitiated) {
+            do {
+                let data = try JSONEncoder().encode(newData)
+                try data.write(to: url, options: [.atomic, .completeFileProtection])
+                print("💾 用户数据保存成功！")
+            } catch {
+                print("❌ 用户数据保存失败: \(error)")
+            }
+        }
     }
     
     func saveUserData() {
+        let url = getDocumentsDirectory().appendingPathComponent(userDataFileName)
+        let data: Data
         do {
-            let url = getDocumentsDirectory().appendingPathComponent(userDataFileName)
-            let data = try JSONEncoder().encode(userData)
-            try data.write(to: url, options: [.atomic, .completeFileProtection])
-            print("💾 用户数据保存成功！")
+            data = try JSONEncoder().encode(userData)
         } catch {
-            print("❌ 用户数据保存失败: \(error)")
+            print("❌ 用户数据编码失败: \(error)")
+            return
+        }
+        DispatchQueue.global(qos: .userInitiated).async {
+            do {
+                try data.write(to: url, options: [.atomic, .completeFileProtection])
+                print("💾 用户数据保存成功！")
+            } catch {
+                print("❌ 用户数据保存失败: \(error)")
+            }
         }
     }
     

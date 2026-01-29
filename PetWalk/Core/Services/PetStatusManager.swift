@@ -16,6 +16,7 @@ enum PetMood: CaseIterable {
         PetAnimationProvider.getConfig(for: self)
     }
     
+    @MainActor
     var dialogue: MoodDialogueConfig {
         PetDialogueProvider.getConfig(for: self)
     }

@@ -20,6 +20,9 @@ struct HistoryView: View {
     @State private var showStatsDetail = false
     @State private var selectedStatsType: StatsType = .distance
     
+    // 设置页
+    @State private var showSettings = false
+    
     // 辅助：加载本地图片
     func loadLocalImage(named name: String) -> UIImage? {
         // 1. 先尝试从 Assets 加载 (兼容旧数据)
@@ -49,6 +52,13 @@ struct HistoryView: View {
                             .font(.system(size: 34, weight: .heavy, design: .rounded))
                             .foregroundColor(.appBrown)
                         Spacer()
+                        
+                        // 设置按钮
+                        Button(action: { showSettings = true }) {
+                            Image(systemName: "gearshape.fill")
+                                .font(.system(size: 20))
+                                .foregroundColor(.appBrown)
+                        }
                     }
                     .padding(.horizontal, 20)
                     .padding(.top, 10) // 添加小的顶部间距，与其他页面保持一致
@@ -168,6 +178,9 @@ struct HistoryView: View {
         }
         .fullScreenCover(isPresented: $showStatsDetail) {
             StatsDetailView(type: selectedStatsType)
+        }
+        .sheet(isPresented: $showSettings) {
+            SettingsView()
         }
     }
 }

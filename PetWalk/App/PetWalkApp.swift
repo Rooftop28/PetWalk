@@ -7,6 +7,7 @@
 
 import SwiftUI
 import SwiftData
+import UserNotifications
 
 @main // 这个标记非常重要，它是 App 的入口
 struct PetWalkApp: App {
@@ -19,21 +20,34 @@ struct PetWalkApp: App {
     // Game Center 管理器
     @ObservedObject private var gameCenter = GameCenterManager.shared
     
+    // 观察 DataManager 以检查 onboarding 状态
+    @ObservedObject private var dataManager = DataManager.shared
+    
+    // 监听 App 生命周期
+    @Environment(\.scenePhase) var scenePhase
+    
     var body: some Scene {
         WindowGroup {
             ZStack {
                 // 主界面（在启动画面下方预先加载）
                 if initializer.isReady {
-                    MainTabView()
-                        // 使用主题 ID 作为视图标识，主题变化时强制刷新
-                        .id(themeManager.currentTheme.id)
-                        // 将 ThemeManager 注入到环境中
-                        .environment(\.themeManager, themeManager)
-                        .transition(.opacity)
-                        .onAppear {
-                            // 初始化 Game Center
-                            gameCenter.authenticate()
+                    if dataManager.userData.hasCompletedOnboarding {
+                        MainTabView()
+                            // 使用主题 ID 作为视图标识，主题变化时强制刷新
+                            .id(themeManager.currentTheme.id)
+                            // 将 ThemeManager 注入到环境中
+                            .environment(\.themeManager, themeManager)
+                            .transition(.opacity)
+                            .onAppear {
+                                // 初始化 Game Center
+                                gameCenter.authenticate()
+                            }
+                    } else {
+                        OnboardingView {
+                            // 完成回调，状态更新会自动触发视图切换
                         }
+                        .transition(.move(edge: .trailing))
+                    }
                 }
                 
                 // 启动画面（覆盖在上方）
@@ -43,6 +57,21 @@ struct PetWalkApp: App {
                 }
             }
             .animation(.easeInOut(duration: 0.5), value: initializer.isReady)
+            // 监听 onboarding 状态变化的动画
+            .animation(.easeInOut(duration: 0.5), value: dataManager.userData.hasCompletedOnboarding)
+            // 监听场景状态，回到前台时清除角标
+            .onChange(of: scenePhase) { _, newPhase in
+                if newPhase == .active {
+                    // 清除 App 角标
+                    UNUserNotificationCenter.current().setBadgeCount(0) { error in
+                        if let error = error {
+                            print("清除角标失败: \(error)")
+                        }
+                    }
+                    // 兼容旧版本 iOS (虽然 setBadgeCount 是 iOS 16+)
+                    UIApplication.shared.applicationIconBadgeNumber = 0
+                }
+            }
         }
     }
 }

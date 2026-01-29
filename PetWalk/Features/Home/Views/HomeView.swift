@@ -21,7 +21,8 @@ struct HomeView: View {
     @ObservedObject private var dataManager = DataManager.shared
     
     // 相册选择器的状态
-    @State private var selectedItem: PhotosPickerItem?
+    @State private var selectedItem: PhotosPickerItem? // 宠物
+    @State private var selectedAvatarItem: PhotosPickerItem? // 人物头像
     
     // 动画状态
     @State private var isDogVisible = false
@@ -66,6 +67,23 @@ struct HomeView: View {
     }
     #endif
     
+    // 处理头像选择
+    func processAvatarSelection(_ item: PhotosPickerItem?) {
+        guard let item = item else { return }
+        
+        Task {
+            // 1. 加载图片
+            if let data = try? await item.loadTransferable(type: Data.self),
+               let originalImage = UIImage(data: data) {
+                 
+                 // 2. 直接保存原图 (无需抠图)
+                 await MainActor.run {
+                     AvatarManager.shared.saveUserAvatar(originalImage)
+                 }
+            }
+        }
+    }
+    
     // 是否显示结算页
     @State private var showSummary = false
     
@@ -75,9 +93,6 @@ struct HomeView: View {
     // 是否显示头像编辑器
     @State private var showAvatarCreator = false
     
-    // 是否显示设置页
-    @State private var showSettings = false
-    
     // 遛狗开始时间（用于成就检测）
     @State private var walkStartTime: Date = Date()
     
@@ -86,6 +101,10 @@ struct HomeView: View {
     
     // 头像管理器
     @ObservedObject private var avatarManager = AvatarManager.shared
+    
+    // 直播管理器 (新增)
+    @StateObject private var liveManager = LiveSessionManager.shared
+    @State private var showLiveMonitor = false
     
     var body: some View {
         ZStack {
@@ -129,14 +148,12 @@ struct HomeView: View {
         .sheet(isPresented: $showShop) {
             RewardShopView()  // 替换为奖励商店
         }
-        // 弹出头像编辑器
-        .sheet(isPresented: $showAvatarCreator) {
-            AvatarCreatorView()
+        // 弹出云遛狗监控页
+        .sheet(isPresented: $showLiveMonitor) {
+            LiveMonitorView()
+                .presentationDragIndicator(.visible) // 显示下拉指示条
         }
-        // 弹出设置页
-        .sheet(isPresented: $showSettings) {
-            SettingsView()
-        }
+
     }
     
     // MARK: - 待机模式视图 (原来的 UI)
@@ -166,22 +183,9 @@ struct HomeView: View {
                     .foregroundColor(.appBrown)
                 #endif
                 
-                // 2. 右侧按钮组
-                HStack(spacing: 10) {
+                // 2. 右侧骨头币按钮
+                HStack {
                     Spacer()
-                    
-                    // 设置按钮
-                    Button(action: { showSettings = true }) {
-                        Image(systemName: "gearshape.fill")
-                            .font(.system(size: 18))
-                            .foregroundColor(.appBrown)
-                            .frame(width: 36, height: 36)
-                            .background(Color.white.opacity(0.8))
-                            .clipShape(Circle())
-                            .shadow(color: .black.opacity(0.05), radius: 5)
-                    }
-                    
-                    // 骨头币按钮
                     Button(action: { showShop = true }) {
                         HStack(spacing: 5) {
                             Text("🦴")
@@ -266,13 +270,19 @@ struct HomeView: View {
                         .id(currentMood) // 强制刷新
                 }
                 
-                // 2.6 用户头像 + 称号 - 右下角，营造反差萌效果
-                UserAvatarView(
-                    onTap: { showAvatarCreator = true },
-                    avatarSize: 70,
-                    showTitle: true
-                )
-                .offset(x: 100, y: 80) // 右下方位置
+                // 2.6 用户头像 + 称号 - 右下角
+                PhotosPicker(selection: $selectedAvatarItem, matching: .images) {
+                    UserAvatarView(
+                        onTap: nil, // 禁用内部点击，交由 PhotosPicker 处理
+                        avatarSize: 70,
+                        showTitle: true
+                    )
+                    .contentShape(Rectangle()) // 扩大点击区域，确保点击响应灵敏
+                }
+                .offset(x: 120, y: 80) // 右下方位置 (向右微调)
+                .onChange(of: selectedAvatarItem) { _, newItem in
+                    processAvatarSelection(newItem)
+                }
                 .opacity(isDogVisible ? 1 : 0)
                 .animation(.easeIn.delay(0.8), value: isDogVisible)
                 
@@ -360,6 +370,65 @@ struct HomeView: View {
             
             // 2. 悬浮数据面板
             VStack(spacing: 20) {
+                // 直播控制栏 (新增)
+                if !liveManager.isBroadcasting {
+                    Button(action: {
+                        liveManager.startBroadcast()
+                    }) {
+                        HStack {
+                            Image(systemName: "antenna.radiowaves.left.and.right")
+                            Text("开启直播")
+                        }
+                        .font(.caption)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(Color.white)
+                        .cornerRadius(15)
+                        .shadow(radius: 2)
+                    }
+                    .padding(.top, -10) // 调整位置
+                } else {
+                    HStack(spacing: 8) {
+                        Circle()
+                            .fill(Color.red)
+                            .frame(width: 8, height: 8)
+                            .opacity(isAnimating ? 1 : 0.5)
+                            .animation(.easeInOut(duration: 0.8).repeatForever(), value: isAnimating)
+                        
+                        Text("直播中: \(liveManager.currentRoomCode ?? "Error")")
+                            .font(.system(size: 14, weight: .bold, design: .monospaced))
+                            .foregroundColor(.white)
+                        
+                        // 复制按钮
+                        Button(action: {
+                            if let code = liveManager.currentRoomCode {
+                                UIPasteboard.general.string = code
+                            }
+                        }) {
+                            Image(systemName: "doc.on.doc")
+                                .font(.caption)
+                                .foregroundColor(.white.opacity(0.8))
+                        }
+                        
+                        Spacer()
+                        
+                        Button(action: {
+                            liveManager.stopBroadcast()
+                        }) {
+                            Image(systemName: "powersleep")
+                                .foregroundColor(.white)
+                                .padding(4)
+                                .background(Color.white.opacity(0.2))
+                                .clipShape(Circle())
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .background(Color.appGreenMain.opacity(0.9))
+                    .cornerRadius(20)
+                    .padding(.top, -20)
+                }
+                
                 HStack(spacing: 40) {
                     // 计时
                     VStack(spacing: 5) {
@@ -460,6 +529,16 @@ struct HomeView: View {
                 .shadow(color: .appGreenDark.opacity(0.3), radius: 10, y: 5)
             }
             .padding(.horizontal, 50)
+            
+            // 云遛狗入口 (新增)
+            Button(action: { showLiveMonitor = true }) {
+                HStack {
+                    Image(systemName: "cloud.fill")
+                    Text("加入云遛狗")
+                }
+                .font(.system(size: 14, weight: .medium))
+                .foregroundColor(.appBrown.opacity(0.6))
+            }
         }
         .padding(.bottom, 30)
     }

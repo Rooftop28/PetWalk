@@ -20,22 +20,27 @@ class NotificationManager: NSObject, ObservableObject {
     @Published var authorizationStatus: UNAuthorizationStatus = .notDetermined
     
     // MARK: - 通知标识符
-    private let dailyReminderIdentifier = "petwalk.daily.reminder"
+    private let dailyReminderIdentifierPrefix = "petwalk.daily.reminder."
     private let friendNudgeIdentifier = "petwalk.friend.nudge"
+    private let maxDailyReminders = 16
     
     // MARK: - 通知文案
-    private let dailyReminderMessages: [String] = [
-        "汪！该带我出去遛弯啦～ 🐕",
-        "今天的骨头币还没赚呢，快出发！",
-        "连续打卡中，别断签哦！🔥",
-        "外面天气不错，一起去散步吧！☀️",
-        "狗狗已经在门口等你了！🐾",
-        "今天的步数还是0，该动一动啦！",
-        "遛狗时间到！让我们一起探索世界～",
-        "狗狗说：主人，我想出去玩！",
-        "成就等你来解锁，出发吧！🏆",
-        "健康生活从遛狗开始！💪"
-    ]
+    private var dailyReminderMessages: [String] {
+        let petName = DataManager.shared.userData.petName
+        let ownerName = DataManager.shared.userData.ownerNickname
+        return [
+            "汪！该带我出去遛弯啦～ 🐕",
+            "今天的骨头币还没赚呢，快出发！",
+            "连续打卡中，别断签哦！🔥",
+            "外面天气不错，一起去散步吧！☀️",
+            "\(petName)已经在门口等你了！🐾",
+            "今天的步数还是0，该动一动啦！",
+            "遛狗时间到！让我们一起探索世界～",
+            "\(petName)说：\(ownerName)，我想出去玩！",
+            "成就等你来解锁，出发吧！🏆",
+            "健康生活从遛狗开始！💪"
+        ]
+    }
     
     private let friendNudgeMessages: [String] = [
         "你的好友 %@ 提醒你：该遛狗啦！🐕",
@@ -79,64 +84,87 @@ class NotificationManager: NSObject, ObservableObject {
     
     // MARK: - 每日提醒
     
-    /// 设置每日遛狗提醒
-    func scheduleDailyReminder(at time: Date) async {
+    /// 设置多个每日遛狗提醒
+    func scheduleDailyReminders(at times: [Date]) async {
         // 确保有权限
         if !isAuthorized {
             let granted = await requestAuthorization()
             guard granted else { return }
         }
         
-        // 先取消现有的提醒
-        cancelDailyReminder()
+        // 拷贝需要的数据，以便在后台任务中使用
+        let reminderTimes = Array(times.prefix(maxDailyReminders))
+        let messages = self.dailyReminderMessages
+        let prefix = self.dailyReminderIdentifierPrefix
+        let maxCount = self.maxDailyReminders
         
-        // 创建通知内容
-        let content = UNMutableNotificationContent()
-        content.title = "PetWalk 遛狗提醒"
-        content.body = dailyReminderMessages.randomElement() ?? "该遛狗啦！"
-        content.sound = .default
-        content.badge = 1
+        // 在后台任务中执行通知设置，避免阻塞主线程
+        await Task.detached(priority: .userInitiated) {
+            // 先取消旧的
+            let identifiers = (0..<maxCount).map { "\(prefix)\($0)" }
+            UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: identifiers)
+            
+            let calendar = Calendar.current
+            
+            // 批量添加新的
+            for (index, time) in reminderTimes.enumerated() {
+                let content = UNMutableNotificationContent()
+                content.title = "PetWalk 遛狗提醒"
+                // 注意：这里访问 `messages` 可能会有问题，因为它现在是计算属性
+                // 但由于我们在 Task 开始前拷贝了 `messages`，所以上面的 `let messages = self.dailyReminderMessages` 其实已经捕获了当时的值
+                // 只要 DataManager 在 MainActor 上是线程安全的（它是），那么在非 MainActor 访问它可能需要注意
+                // 实际上 `dailyReminderMessages` 现在访问 DataManager，而 DataManager 是 @MainActor
+                // 所以我们需要在这一行之前（在 MainActor 上）就获取好 messages
+                content.body = messages.randomElement() ?? "该遛狗啦！"
+                content.sound = .default
+                content.badge = 1
+                
+                let components = calendar.dateComponents([.hour, .minute], from: time)
+                let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: true)
+                let identifier = "\(prefix)\(index)"
+                
+                let request = UNNotificationRequest(
+                    identifier: identifier,
+                    content: content,
+                    trigger: trigger
+                )
+                
+                do {
+                    try await UNUserNotificationCenter.current().add(request)
+                    print("NotificationManager: 每日提醒已设置 [\(index)] - \(components.hour ?? 0):\(components.minute ?? 0)")
+                } catch {
+                    print("NotificationManager: 设置每日提醒失败 [\(index)] - \(error)")
+                }
+            }
+        }.value
+    }
+    
+    /// 取消所有每日提醒
+    func cancelDailyReminders() {
+        let prefix = self.dailyReminderIdentifierPrefix
+        let maxCount = self.maxDailyReminders
         
-        // 设置触发时间（每天重复）
-        let calendar = Calendar.current
-        let components = calendar.dateComponents([.hour, .minute], from: time)
-        let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: true)
-        
-        // 创建请求
-        let request = UNNotificationRequest(
-            identifier: dailyReminderIdentifier,
-            content: content,
-            trigger: trigger
-        )
-        
-        do {
-            try await UNUserNotificationCenter.current().add(request)
-            print("NotificationManager: 每日提醒已设置 - \(components.hour ?? 0):\(components.minute ?? 0)")
-        } catch {
-            print("NotificationManager: 设置每日提醒失败 - \(error)")
+        Task.detached {
+            let identifiers = (0..<maxCount).map { "\(prefix)\($0)" }
+            UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: identifiers)
+            print("NotificationManager: 每日提醒已全部取消")
         }
     }
     
-    /// 取消每日提醒
-    func cancelDailyReminder() {
-        UNUserNotificationCenter.current().removePendingNotificationRequests(
-            withIdentifiers: [dailyReminderIdentifier]
-        )
-        print("NotificationManager: 每日提醒已取消")
-    }
-    
-    /// 更新每日提醒设置
-    func updateDailyReminder(enabled: Bool, time: Date) async {
-        if enabled {
-            await scheduleDailyReminder(at: time)
+    /// 更新每日提醒设置（支持多个时间）
+    func updateDailyReminder(enabled: Bool, times: [Date]) async {
+        if enabled && !times.isEmpty {
+            await scheduleDailyReminders(at: times)
         } else {
-            cancelDailyReminder()
+            cancelDailyReminders()
         }
         
-        // 保存设置到 UserData
         var userData = DataManager.shared.userData
         userData.dailyReminderEnabled = enabled
-        userData.dailyReminderTime = time
+        userData.dailyReminderTimes = times
+        if let first = times.first {
+            userData.dailyReminderTime = first
+        }
         DataManager.shared.updateUserData(userData)
     }
     
@@ -222,7 +250,7 @@ extension NotificationManager: UNUserNotificationCenterDelegate {
         // 处理通知点击
         let identifier = response.notification.request.identifier
         
-        if identifier == "petwalk.daily.reminder" {
+        if identifier.hasPrefix("petwalk.daily.reminder") {
             // 点击每日提醒，可以跳转到首页开始遛狗
             print("NotificationManager: 用户点击了每日提醒")
         } else if identifier.hasPrefix("petwalk.friend.nudge") {

@@ -7,6 +7,12 @@
 
 import SwiftUI
 
+/// 提醒时间项（用于列表展示与增删）
+private struct ReminderTimeRow: Identifiable {
+    let id = UUID()
+    var time: Date
+}
+
 /// 提醒设置视图
 struct ReminderSettingsView: View {
     @ObservedObject var dataManager = DataManager.shared
@@ -14,9 +20,11 @@ struct ReminderSettingsView: View {
     @Environment(\.dismiss) var dismiss
     
     @State private var reminderEnabled: Bool = false
-    @State private var reminderTime: Date = Date()
-    @State private var showingTimePicker = false
+    @State private var reminderTimeRows: [ReminderTimeRow] = []
     @State private var showPermissionAlert = false
+    @State private var isSaving = false
+    
+    private let maxReminderCount = 8
     
     var body: some View {
         NavigationView {
@@ -25,18 +33,11 @@ struct ReminderSettingsView: View {
                 
                 ScrollView {
                     VStack(spacing: 20) {
-                        // 权限状态卡片
                         permissionCard
-                        
-                        // 每日提醒设置
                         dailyReminderCard
-                        
-                        // 通知预览
-                        if reminderEnabled {
+                        if reminderEnabled && !reminderTimeRows.isEmpty {
                             notificationPreviewCard
                         }
-                        
-                        // 说明文字
                         infoSection
                     }
                     .padding()
@@ -47,22 +48,24 @@ struct ReminderSettingsView: View {
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("完成") {
-                        saveSettings()
-                        dismiss()
+                        saveAndDismiss()
                     }
                     .foregroundColor(.appGreenMain)
+                    .disabled(isSaving)
                 }
             }
-            .onAppear {
-                loadSettings()
+            .overlay {
+                if isSaving {
+                    Color.black.opacity(0.3)
+                        .ignoresSafeArea()
+                    ProgressView("保存中…")
+                        .tint(.white)
+                }
             }
+            .onAppear { loadSettings() }
             .alert("需要通知权限", isPresented: $showPermissionAlert) {
-                Button("去设置") {
-                    notificationManager.openSettings()
-                }
-                Button("取消", role: .cancel) {
-                    reminderEnabled = false
-                }
+                Button("去设置") { notificationManager.openSettings() }
+                Button("取消", role: .cancel) { reminderEnabled = false }
             } message: {
                 Text("请在设置中开启通知权限，以便接收遛狗提醒。")
             }
@@ -123,31 +126,32 @@ struct ReminderSettingsView: View {
     
     private var dailyReminderCard: some View {
         VStack(spacing: 0) {
-            // 开关
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("每日遛狗提醒")
                         .font(.headline)
                         .foregroundColor(.appBrown)
-                    
-                    Text("每天在设定时间提醒你遛狗")
+                    Text("每天在设定时间提醒你遛狗，可添加多个")
                         .font(.caption)
                         .foregroundColor(.gray)
                 }
-                
                 Spacer()
-                
                 Toggle("", isOn: $reminderEnabled)
                     .labelsHidden()
                     .tint(.appGreenMain)
                     .onChange(of: reminderEnabled) { oldValue, newValue in
-                        if newValue && !notificationManager.isAuthorized {
-                            Task {
-                                let granted = await notificationManager.requestAuthorization()
-                                if !granted {
-                                    reminderEnabled = false
-                                    showPermissionAlert = true
+                        if newValue {
+                            if !notificationManager.isAuthorized {
+                                Task {
+                                    let granted = await notificationManager.requestAuthorization()
+                                    if !granted {
+                                        reminderEnabled = false
+                                        showPermissionAlert = true
+                                    }
                                 }
+                            }
+                            if reminderTimeRows.isEmpty {
+                                reminderTimeRows = [ReminderTimeRow(time: defaultTime())]
                             }
                         }
                     }
@@ -158,23 +162,52 @@ struct ReminderSettingsView: View {
                 Divider()
                     .padding(.horizontal)
                 
-                // 时间选择
-                HStack {
-                    Text("提醒时间")
-                        .font(.subheadline)
-                        .foregroundColor(.appBrown)
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack {
+                        Text("提醒时间")
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                            .foregroundColor(.appBrown)
+                        Spacer()
+                        if reminderTimeRows.count < maxReminderCount {
+                            Button {
+                                reminderTimeRows.append(ReminderTimeRow(time: defaultTime()))
+                            } label: {
+                                Label("添加", systemImage: "plus.circle.fill")
+                                    .font(.subheadline)
+                                    .foregroundColor(.appGreenMain)
+                            }
+                        }
+                    }
+                    .padding(.horizontal)
                     
-                    Spacer()
-                    
-                    DatePicker(
-                        "",
-                        selection: $reminderTime,
-                        displayedComponents: .hourAndMinute
-                    )
-                    .labelsHidden()
-                    .datePickerStyle(.compact)
+                    ForEach($reminderTimeRows) { $row in
+                        HStack(spacing: 12) {
+                            DatePicker(
+                                "",
+                                selection: $row.time,
+                                displayedComponents: .hourAndMinute
+                            )
+                            .labelsHidden()
+                            .datePickerStyle(.compact)
+                            
+                            if reminderTimeRows.count > 1 {
+                                Button(role: .destructive) {
+                                    reminderTimeRows.removeAll { $0.id == row.id }
+                                } label: {
+                                    Image(systemName: "trash")
+                                        .font(.body)
+                                }
+                            }
+                        }
+                        .padding(.vertical, 6)
+                        .padding(.horizontal, 12)
+                        .background(Color.gray.opacity(0.06))
+                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                    }
+                    .padding(.horizontal)
                 }
-                .padding()
+                .padding(.vertical, 12)
             }
         }
         .background(Color.white)
@@ -190,32 +223,41 @@ struct ReminderSettingsView: View {
                 .font(.headline)
                 .foregroundColor(.appBrown)
             
-            // 模拟通知
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(spacing: 10) {
-                    Image(systemName: "pawprint.fill")
-                        .font(.system(size: 24))
-                        .foregroundColor(.appGreenMain)
-                        .frame(width: 40, height: 40)
+            Text("每天将在以下 \(reminderTimeRows.count) 个时间收到提醒：")
+                .font(.caption)
+                .foregroundColor(.gray)
+            
+            HStack(spacing: 8) {
+                ForEach(reminderTimeRows.prefix(5)) { row in
+                    Text(formatTime(row.time))
+                        .font(.caption)
+                        .fontWeight(.medium)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
                         .background(Color.appGreenMain.opacity(0.15))
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
-                    
-                    VStack(alignment: .leading, spacing: 2) {
-                        HStack {
-                            Text("PetWalk 遛狗提醒")
-                                .font(.subheadline)
-                                .fontWeight(.semibold)
-                            Spacer()
-                            Text(formatTime(reminderTime))
-                                .font(.caption)
-                                .foregroundColor(.gray)
-                        }
-                        
-                        Text("汪！该带我出去遛弯啦～ 🐕")
-                            .font(.caption)
-                            .foregroundColor(.gray)
-                    }
+                        .foregroundColor(.appGreenMain)
+                        .clipShape(Capsule())
                 }
+                if reminderTimeRows.count > 5 {
+                    Text("+\(reminderTimeRows.count - 5)")
+                        .font(.caption)
+                        .foregroundColor(.gray)
+                }
+            }
+            
+            HStack(spacing: 10) {
+                Image(systemName: "pawprint.fill")
+                    .font(.system(size: 20))
+                    .foregroundColor(.appGreenMain)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("PetWalk 遛狗提醒")
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                    Text("汪！该带我出去遛弯啦～ 🐕")
+                        .font(.caption)
+                        .foregroundColor(.gray)
+                }
+                Spacer()
             }
             .padding()
             .background(Color.gray.opacity(0.1))
@@ -236,7 +278,7 @@ struct ReminderSettingsView: View {
                 .fontWeight(.medium)
                 .foregroundColor(.gray)
             
-            Text("• 每天会在设定时间发送一条遛狗提醒\n• 通知文案会随机变化，增加趣味性\n• 如果当天已经遛过狗，仍会收到提醒\n• 你可以随时在这里关闭提醒")
+            Text("• 可添加多个提醒时间，每天在这些时间收到通知\n• 通知文案会随机变化\n• 最多添加 \(maxReminderCount) 个提醒时间\n• 可随时关闭或删减")
                 .font(.caption)
                 .foregroundColor(.gray.opacity(0.8))
                 .lineSpacing(4)
@@ -247,17 +289,41 @@ struct ReminderSettingsView: View {
     
     // MARK: - 辅助方法
     
-    private func loadSettings() {
-        reminderEnabled = dataManager.userData.dailyReminderEnabled
-        reminderTime = dataManager.userData.dailyReminderTime
+    private func defaultTime() -> Date {
+        var c = DateComponents()
+        c.hour = 18
+        c.minute = 0
+        return Calendar.current.date(from: c) ?? Date()
     }
     
-    private func saveSettings() {
+    private func loadSettings() {
+        reminderEnabled = dataManager.userData.dailyReminderEnabled
+        let times = dataManager.userData.dailyReminderTimes
+        if !times.isEmpty {
+            reminderTimeRows = times.map { ReminderTimeRow(time: $0) }
+        } else if dataManager.userData.dailyReminderEnabled {
+            reminderTimeRows = [ReminderTimeRow(time: dataManager.userData.dailyReminderTime)]
+        } else {
+            reminderTimeRows = []
+        }
+    }
+    
+    private func saveSettings() async {
+        let times = reminderTimeRows.map { $0.time }
+        await notificationManager.updateDailyReminder(
+            enabled: reminderEnabled,
+            times: times
+        )
+    }
+    
+    private func saveAndDismiss() {
+        isSaving = true
         Task {
-            await notificationManager.updateDailyReminder(
-                enabled: reminderEnabled,
-                time: reminderTime
-            )
+            await saveSettings()
+            await MainActor.run {
+                isSaving = false
+                dismiss()
+            }
         }
     }
     
@@ -274,6 +340,7 @@ struct SettingsView: View {
     @Environment(\.dismiss) var dismiss
     
     @State private var showReminderSettings = false
+    @State private var showEditProfile = false
     @State private var showAbout = false
     
     var body: some View {
@@ -291,11 +358,33 @@ struct SettingsView: View {
                                 icon: "bell.fill",
                                 iconColor: .orange,
                                 title: "遛狗提醒",
-                                subtitle: dataManager.userData.dailyReminderEnabled ? "已开启" : "未开启"
+                                subtitle: dataManager.userData.dailyReminderEnabled
+                                    ? (dataManager.userData.dailyReminderTimes.count > 1
+                                        ? "已开启 (\(dataManager.userData.dailyReminderTimes.count) 个)"
+                                        : "已开启")
+                                    : "未开启"
                             )
                         }
                     } header: {
                         Text("通知")
+                    }
+                    
+                    // 个人资料
+                    Section {
+                        Button {
+                            // 由于使用了 sheet，这里需要一个新的 state 变量，或者重用现有的机制
+                            // 为了简单起见，我们在当前 View 增加一个状态变量
+                            showEditProfile = true
+                        } label: {
+                            SettingsRow(
+                                icon: "person.crop.circle.fill",
+                                iconColor: .purple,
+                                title: "修改称呼",
+                                subtitle: "\(dataManager.userData.petName) & \(dataManager.userData.ownerNickname)"
+                            )
+                        }
+                    } header: {
+                        Text("个人资料")
                     }
                     
                     // 数据管理
@@ -348,6 +437,9 @@ struct SettingsView: View {
             }
             .sheet(isPresented: $showReminderSettings) {
                 ReminderSettingsView()
+            }
+            .sheet(isPresented: $showEditProfile) {
+                EditProfileView()
             }
         }
     }

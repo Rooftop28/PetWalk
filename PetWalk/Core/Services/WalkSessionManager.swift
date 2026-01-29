@@ -67,6 +67,11 @@ class WalkSessionManager: ObservableObject {
     private func onLocationUpdate(_ location: CLLocation) {
         let speed = locationManager.currentSpeed
         
+        // 直播模式：如果有正在进行的直播，广播坐标
+        if LiveSessionManager.shared.isBroadcasting {
+            LiveSessionManager.shared.broadcastLocation(location)
+        }
+        
         // 检测景点打卡
         if let landmark = LandmarkManager.shared.checkLocation(location) {
             visitedLandmarks.append(landmark)
@@ -135,6 +140,11 @@ class WalkSessionManager: ObservableObject {
         // 结束各管理器并获取数据
         let poiResult = POIDetector.shared.endSession()
         LandmarkManager.shared.endSession()
+        
+        // 自动停止直播 (如果有)
+        if LiveSessionManager.shared.isBroadcasting {
+            LiveSessionManager.shared.stopBroadcast()
+        }
         
         // 构建会话数据
         let sessionData = WalkSessionData(

@@ -10,5 +10,7 @@
 	<dict/>
 	<key>NSUserNotificationsUsageDescription</key>
 	<string>PetWalk 需要发送通知来提醒你每日遛狗，以及接收好友的催促消息。</string>
+	<key>NSCameraUsageDescription</key>
+	<string>PetWalk 需要访问摄像头，以便在遛狗结束后拍照留念。</string>
 </dict>
 </plist>
