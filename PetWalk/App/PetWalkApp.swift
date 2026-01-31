@@ -41,6 +41,9 @@ struct PetWalkApp: App {
                             .onAppear {
                                 // 初始化 Game Center
                                 gameCenter.authenticate()
+                                
+                                // 清理可能的僵尸活动
+                                WalkSessionManager.shared.terminateAllActivities()
                             }
                     } else {
                         OnboardingView {

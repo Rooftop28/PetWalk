@@ -24,6 +24,9 @@ struct WalkRecord: Identifiable, Codable {
     let mood: String
     let imageName: String?
     
+    // Accurate Timestamp (v1.4) - Fixed Calendar Logic
+    var timestamp: Date?
+    
     // 轨迹数据
     let route: [RoutePoint]?
     

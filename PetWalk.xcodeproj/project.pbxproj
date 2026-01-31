@@ -8,6 +8,9 @@
 
 /* Begin PBXBuildFile section */
 		348043232EDEAF5F00D887F4 /* PetWalkWatch Watch App.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = 348043032EDEAF5D00D887F4 /* PetWalkWatch Watch App.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		CE029EB62F2DCCD900D5FD8F /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = CE029EB52F2DCCD900D5FD8F /* WidgetKit.framework */; };
+		CE029EB82F2DCCD900D5FD8F /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = CE029EB72F2DCCD900D5FD8F /* SwiftUI.framework */; };
+		CE029EC72F2DCCDA00D5FD8F /* PetWalkWidgetsExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = CE029EB42F2DCCD900D5FD8F /* PetWalkWidgetsExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		CE3934822F2B5E9900E1BA69 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = CE3934812F2B5E9900E1BA69 /* Supabase */; };
 /* End PBXBuildFile section */
 
@@ -47,6 +50,13 @@
 			remoteGlobalIDString = 348043022EDEAF5D00D887F4;
 			remoteInfo = "PetWalkWatch Watch App";
 		};
+		CE029EC52F2DCCDA00D5FD8F /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 3480429A2EDDC28E00D887F4 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = CE029EB32F2DCCD900D5FD8F;
+			remoteInfo = PetWalkWidgetsExtension;
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -61,6 +71,17 @@
 			name = "Embed Watch Content";
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		CE029ECC2F2DCCDA00D5FD8F /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				CE029EC72F2DCCDA00D5FD8F /* PetWalkWidgetsExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
@@ -70,6 +91,9 @@
 		348043032EDEAF5D00D887F4 /* PetWalkWatch Watch App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "PetWalkWatch Watch App.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		3480430F2EDEAF5F00D887F4 /* PetWalkWatch Watch AppTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "PetWalkWatch Watch AppTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		348043192EDEAF5F00D887F4 /* PetWalkWatch Watch AppUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "PetWalkWatch Watch AppUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
+		CE029EB42F2DCCD900D5FD8F /* PetWalkWidgetsExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = PetWalkWidgetsExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		CE029EB52F2DCCD900D5FD8F /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
+		CE029EB72F2DCCD900D5FD8F /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -80,6 +104,20 @@
 			);
 			target = 348042A12EDDC28E00D887F4 /* PetWalk */;
 		};
+		CE029ECB2F2DCCDA00D5FD8F /* Exceptions for "PetWalkWidgets" folder in "PetWalkWidgetsExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = CE029EB32F2DCCD900D5FD8F /* PetWalkWidgetsExtension */;
+		};
+		CE029ECE2F2DCEE000D5FD8F /* Exceptions for "PetWalk" folder in "PetWalkWidgetsExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Shared/Models/PetWalkAttributes.swift,
+			);
+			target = CE029EB32F2DCCD900D5FD8F /* PetWalkWidgetsExtension */;
+		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -87,6 +125,7 @@
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
 				348042F82EDEAB4700D887F4 /* Exceptions for "PetWalk" folder in "PetWalk" target */,
+				CE029ECE2F2DCEE000D5FD8F /* Exceptions for "PetWalk" folder in "PetWalkWidgetsExtension" target */,
 			);
 			path = PetWalk;
 			sourceTree = "<group>";
@@ -114,6 +153,14 @@
 		3480431C2EDEAF5F00D887F4 /* PetWalkWatch Watch AppUITests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = "PetWalkWatch Watch AppUITests";
+			sourceTree = "<group>";
+		};
+		CE029EB92F2DCCD900D5FD8F /* PetWalkWidgets */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				CE029ECB2F2DCCDA00D5FD8F /* Exceptions for "PetWalkWidgets" folder in "PetWalkWidgetsExtension" target */,
+			);
+			path = PetWalkWidgets;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -162,6 +209,15 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		CE029EB12F2DCCD900D5FD8F /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				CE029EB82F2DCCD900D5FD8F /* SwiftUI.framework in Frameworks */,
+				CE029EB62F2DCCD900D5FD8F /* WidgetKit.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -174,6 +230,7 @@
 				348043042EDEAF5D00D887F4 /* PetWalkWatch Watch App */,
 				348043122EDEAF5F00D887F4 /* PetWalkWatch Watch AppTests */,
 				3480431C2EDEAF5F00D887F4 /* PetWalkWatch Watch AppUITests */,
+				CE029EB92F2DCCD900D5FD8F /* PetWalkWidgets */,
 				CE3934802F2B5E9000E1BA69 /* Frameworks */,
 				348042A32EDDC28E00D887F4 /* Products */,
 			);
@@ -188,6 +245,7 @@
 				348043032EDEAF5D00D887F4 /* PetWalkWatch Watch App.app */,
 				3480430F2EDEAF5F00D887F4 /* PetWalkWatch Watch AppTests.xctest */,
 				348043192EDEAF5F00D887F4 /* PetWalkWatch Watch AppUITests.xctest */,
+				CE029EB42F2DCCD900D5FD8F /* PetWalkWidgetsExtension.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -195,6 +253,8 @@
 		CE3934802F2B5E9000E1BA69 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				CE029EB52F2DCCD900D5FD8F /* WidgetKit.framework */,
+				CE029EB72F2DCCD900D5FD8F /* SwiftUI.framework */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -210,11 +270,13 @@
 				3480429F2EDDC28E00D887F4 /* Frameworks */,
 				348042A02EDDC28E00D887F4 /* Resources */,
 				348043272EDEAF5F00D887F4 /* Embed Watch Content */,
+				CE029ECC2F2DCCDA00D5FD8F /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
 				348043222EDEAF5F00D887F4 /* PBXTargetDependency */,
+				CE029EC62F2DCCDA00D5FD8F /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				348042A42EDDC28E00D887F4 /* PetWalk */,
@@ -341,6 +403,28 @@
 			productReference = 348043192EDEAF5F00D887F4 /* PetWalkWatch Watch AppUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
+		CE029EB32F2DCCD900D5FD8F /* PetWalkWidgetsExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = CE029EC82F2DCCDA00D5FD8F /* Build configuration list for PBXNativeTarget "PetWalkWidgetsExtension" */;
+			buildPhases = (
+				CE029EB02F2DCCD900D5FD8F /* Sources */,
+				CE029EB12F2DCCD900D5FD8F /* Frameworks */,
+				CE029EB22F2DCCD900D5FD8F /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				CE029EB92F2DCCD900D5FD8F /* PetWalkWidgets */,
+			);
+			name = PetWalkWidgetsExtension;
+			packageProductDependencies = (
+			);
+			productName = PetWalkWidgetsExtension;
+			productReference = CE029EB42F2DCCD900D5FD8F /* PetWalkWidgetsExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -348,7 +432,7 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
-				LastSwiftUpdateCheck = 1640;
+				LastSwiftUpdateCheck = 2610;
 				LastUpgradeCheck = 1640;
 				TargetAttributes = {
 					348042A12EDDC28E00D887F4 = {
@@ -372,6 +456,9 @@
 					348043182EDEAF5F00D887F4 = {
 						CreatedOnToolsVersion = 16.4;
 						TestTargetID = 348043022EDEAF5D00D887F4;
+					};
+					CE029EB32F2DCCD900D5FD8F = {
+						CreatedOnToolsVersion = 26.1.1;
 					};
 				};
 			};
@@ -398,6 +485,7 @@
 				348043022EDEAF5D00D887F4 /* PetWalkWatch Watch App */,
 				3480430E2EDEAF5F00D887F4 /* PetWalkWatch Watch AppTests */,
 				348043182EDEAF5F00D887F4 /* PetWalkWatch Watch AppUITests */,
+				CE029EB32F2DCCD900D5FD8F /* PetWalkWidgetsExtension */,
 			);
 		};
 /* End PBXProject section */
@@ -439,6 +527,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		348043172EDEAF5F00D887F4 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		CE029EB22F2DCCD900D5FD8F /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -490,6 +585,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		CE029EB02F2DCCD900D5FD8F /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -517,6 +619,11 @@
 			isa = PBXTargetDependency;
 			target = 348043022EDEAF5D00D887F4 /* PetWalkWatch Watch App */;
 			targetProxy = 348043212EDEAF5F00D887F4 /* PBXContainerItemProxy */;
+		};
+		CE029EC62F2DCCDA00D5FD8F /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = CE029EB32F2DCCD900D5FD8F /* PetWalkWidgetsExtension */;
+			targetProxy = CE029EC52F2DCCDA00D5FD8F /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -920,6 +1027,68 @@
 			};
 			name = Release;
 		};
+		CE029EC92F2DCCDA00D5FD8F /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 2W2SCP4Q92;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = PetWalkWidgets/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = PetWalkWidgets;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.1;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = Rooftop22.PetWalk.PetWalkWidgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		CE029ECA2F2DCCDA00D5FD8F /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 2W2SCP4Q92;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = PetWalkWidgets/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = PetWalkWidgets;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.1;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = Rooftop22.PetWalk.PetWalkWidgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -982,6 +1151,15 @@
 			buildConfigurations = (
 				3480432C2EDEAF5F00D887F4 /* Debug */,
 				3480432D2EDEAF5F00D887F4 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		CE029EC82F2DCCDA00D5FD8F /* Build configuration list for PBXNativeTarget "PetWalkWidgetsExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				CE029EC92F2DCCDA00D5FD8F /* Debug */,
+				CE029ECA2F2DCCDA00D5FD8F /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

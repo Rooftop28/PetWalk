@@ -448,6 +448,7 @@ struct WalkSummaryView: View {
             duration: Int(duration / 60),
             mood: mood,
             imageName: imageName,
+            timestamp: now,
             route: routeCoordinates,
             itemsFound: nil, // 不再使用物品系统
             bonesEarned: earnedBones,

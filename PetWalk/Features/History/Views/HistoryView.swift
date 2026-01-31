@@ -33,6 +33,9 @@ struct HistoryView: View {
     // 多记录选择 (当一天有多次记录时)
     @State private var dailySelection: DailySelection? = nil
     
+    // 当前显示的月份
+    @State private var currentDisplayDate = Date()
+    
     // 设置页
     @State private var showSettings = false
     
@@ -82,8 +85,10 @@ struct HistoryView: View {
                             
                             // A. 升级版日历卡片 (传入 live data)
 
+                            // A. 升级版日历卡片 (传入 live data)
                             PhotoCalendarCard(
                                 records: dataManager.records,
+                                currentMonth: $currentDisplayDate, // 传入绑定
                                 onRecordTap: { records in
                                     if records.count == 1, let first = records.first {
                                         self.selectedRecord = first
@@ -257,11 +262,11 @@ enum CalendarMode {
 
 // 1. 三态日历卡片容器
 struct PhotoCalendarCard: View {
+    // 依赖绑定
     let records: [WalkRecord]
+    @Binding var currentMonth: Date
     var onRecordTap: ([WalkRecord]) -> Void
     var onDiaryTap: ([WalkRecord]) -> Void
-    
-
     
     @State private var mode: CalendarMode = .photo
     
@@ -273,56 +278,111 @@ struct PhotoCalendarCard: View {
         return nil
     }
     
-    // 计算去重后的打卡天数
+    // 辅助：日期计算
+    var calendar: Calendar { Calendar.current }
+    
+    var year: Int { calendar.component(.year, from: currentMonth) }
+    var month: Int { calendar.component(.month, from: currentMonth) }
+    
+    // 获取当月所有记录
+    var currentMonthRecords: [WalkRecord] {
+        return records.filter { record in
+            // 1. 优先使用精确时间戳 (v1.4+)
+            if let timestamp = record.timestamp {
+                return calendar.isDate(timestamp, equalTo: currentMonth, toGranularity: .month)
+            }
+            
+            // 2. 兼容旧数据 (无年份，只有 "MM月dd日")
+            // 假设旧数据属于当前查看的年份（或者只匹配月份）
+            // 简单策略：只要月份数字匹配就显示
+            let monthStr = String(format: "%02d月", month) // "01月"
+            let monthStrAlt = "\(month)月" // "1月"
+            return record.date.hasPrefix(monthStr) || record.date.contains(monthStr) ||
+                   record.date.hasPrefix(monthStrAlt) || record.date.contains(monthStrAlt)
+        }
+    }
+    
+    // 计算去重后的打卡天数 (基于当月)
     var uniqueDaysCount: Int {
-        let uniqueDates = Set(records.map { $0.date })
+        let uniqueDates = Set(currentMonthRecords.map { $0.date })
         return uniqueDates.count
+    }
+    
+    // 标题文本
+    var monthTitle: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy年M月"
+        return formatter.string(from: currentMonth)
+    }
+    
+    // 切换月份
+    func changeMonth(by value: Int) {
+        if let newDate = calendar.date(byAdding: .month, value: value, to: currentMonth) {
+            currentMonth = newDate
+        }
     }
     
     var body: some View {
         VStack(alignment: .leading, spacing: 15) {
             // Header
             HStack {
-                Text(mode.title)
-                    .font(.system(size: 16, weight: .bold, design: .rounded))
-                    .foregroundColor(.appBrown)
+                // 1. 月份切换器
+                HStack(spacing: 8) {
+                    Button(action: { changeMonth(by: -1) }) {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundColor(.appBrown)
+                    }
+                    
+                    Text(monthTitle)
+                        .font(.system(size: 16, weight: .bold, design: .rounded))
+                        .foregroundColor(.appBrown)
+                        .frame(minWidth: 80)
+                    
+                    Button(action: { changeMonth(by: 1) }) {
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundColor(.appBrown)
+                    }
+                    // 只有当不是当月时，禁止向后切换? 或者允许查看未来? 目前不做限制
+                    .disabled(Calendar.current.isDate(currentMonth, equalTo: Date(), toGranularity: .month))
+                    .opacity(Calendar.current.isDate(currentMonth, equalTo: Date(), toGranularity: .month) ? 0.3 : 1)
+                }
                 
                 Spacer()
                 
-                // 切换按钮
-                Button(action: {
-                    withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
-                        mode = mode.next
+                // 2. 模式切换
+                HStack(spacing: 12) {
+                    Text(mode.title)
+                        .font(.caption)
+                        .foregroundColor(.gray)
+                    
+                    Button(action: {
+                        withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
+                            mode = mode.next
+                        }
+                    }) {
+                        Image(systemName: "arrow.triangle.2.circlepath")
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundColor(.appGreenDark)
+                            .padding(6)
+                            .background(Color.appGreenMain.opacity(0.1))
+                            .clipShape(Circle())
                     }
-                }) {
-                    Image(systemName: "arrow.triangle.2.circlepath")
-                        .font(.system(size: 16, weight: .bold))
-                        .foregroundColor(.appGreenDark)
-                        .padding(8)
-                        .background(Color.appGreenMain.opacity(0.1))
-                        .clipShape(Circle())
                 }
-                
-                Text("已打卡 \(uniqueDaysCount) 天")
-                    .font(.caption)
-                    .foregroundColor(.appGreenDark)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 5)
-                    .background(Color.appGreenMain.opacity(0.2))
-                    .clipShape(Capsule())
             }
             
             // Content Area
             ZStack {
                 switch mode {
                 case .photo:
-                    PhotoGridView(records: records, loadLocalImage: loadLocalImage, onRecordTap: onRecordTap)
+                    PhotoGridView(records: currentMonthRecords, currentMonth: currentMonth, loadLocalImage: loadLocalImage, onRecordTap: onRecordTap)
                         .transition(.opacity)
                 case .diary:
-                    DiaryGridView(records: records, onRecordTap: onDiaryTap)
+                    DiaryGridView(records: currentMonthRecords, currentMonth: currentMonth, onRecordTap: onDiaryTap)
                         .transition(.opacity)
                 case .heatmap:
-                    HeatmapGridView(records: records, onRecordTap: onRecordTap)
+                    HeatmapGridView(records: currentMonthRecords, currentMonth: currentMonth, onRecordTap: onRecordTap)
                         .transition(.opacity)
                 }
             }
@@ -341,10 +401,28 @@ struct PhotoCalendarCard: View {
 // 正面：照片网格
 struct PhotoGridView: View {
     let records: [WalkRecord]
+    let currentMonth: Date
     let loadLocalImage: (String) -> UIImage?
     let onRecordTap: ([WalkRecord]) -> Void
     
     let columns = Array(repeating: GridItem(.flexible()), count: 7)
+    
+    // 获取当月天数
+    var daysInMonth: Int {
+        let range = Calendar.current.range(of: .day, in: .month, for: currentMonth)!
+        return range.count
+    }
+    
+    // 获取当月第一天是星期几 (0=周日, 1=周一...)
+    var firstWeekdayOffset: Int {
+        let components = Calendar.current.dateComponents([.year, .month], from: currentMonth)
+        let firstDay = Calendar.current.date(from: components)!
+        let weekday = Calendar.current.component(.weekday, from: firstDay)
+        // weekday: 1=Sunday, 2=Monday, ..., 7=Saturday
+        // 我们的表头是 ["日", "一", "二", "三", "四", "五", "六"]
+        // 所以 Sunday(1) -> offset 0, Monday(2) -> offset 1, etc.
+        return weekday - 1
+    }
     
     func getRecords(for day: Int) -> [WalkRecord] {
         records.filter { $0.day == day }
@@ -356,7 +434,13 @@ struct PhotoGridView: View {
                 Text(day).font(.system(size: 10, weight: .bold)).foregroundColor(.appBrown.opacity(0.4))
             }
             
-            ForEach(1...30, id: \.self) { day in
+            // 填充前面的空白
+            ForEach(0..<firstWeekdayOffset, id: \.self) { _ in
+                Color.clear.frame(height: 36)
+            }
+            
+            // 渲染动态天数
+            ForEach(1...daysInMonth, id: \.self) { day in
                 let dailyRecords = getRecords(for: day)
                 let record = dailyRecords.last // 显示最新的
                 
@@ -389,8 +473,6 @@ struct PhotoGridView: View {
                                 }
                             }
                         }
-                        
-
                     } else {
                         // 无记录
                         Circle().fill(Color.gray.opacity(0.1)).frame(height: 36)
@@ -410,10 +492,22 @@ struct PhotoGridView: View {
 // 背面：纯色热力图
 struct HeatmapGridView: View {
     let records: [WalkRecord]
+    let currentMonth: Date
     // 增加点击回调
     var onRecordTap: (([WalkRecord]) -> Void)? = nil
     
     let columns = Array(repeating: GridItem(.flexible()), count: 7)
+    
+    var daysInMonth: Int {
+        Calendar.current.range(of: .day, in: .month, for: currentMonth)!.count
+    }
+    
+    var firstWeekdayOffset: Int {
+        let components = Calendar.current.dateComponents([.year, .month], from: currentMonth)
+        let firstDay = Calendar.current.date(from: components)!
+        let weekday = Calendar.current.component(.weekday, from: firstDay)
+        return weekday - 1
+    }
     
     // 获取某天的总距离
     func getDailyDistance(day: Int) -> Double {
@@ -434,7 +528,11 @@ struct HeatmapGridView: View {
                 Text(day).font(.system(size: 10, weight: .bold)).foregroundColor(.appBrown.opacity(0.4))
             }
             
-            ForEach(1...30, id: \.self) { day in
+            ForEach(0..<firstWeekdayOffset, id: \.self) { _ in
+                Color.clear.frame(height: 36)
+            }
+            
+            ForEach(1...daysInMonth, id: \.self) { day in
                 let distance = getDailyDistance(day: day)
                 
                 ZStack {
@@ -562,11 +660,24 @@ struct WalkRecordCard: View {
 }
 
 // 新增：日记模式网格
+// 新增：日记模式网格
 struct DiaryGridView: View {
     let records: [WalkRecord]
+    let currentMonth: Date
     var onRecordTap: (([WalkRecord]) -> Void)? = nil
     
     let columns = Array(repeating: GridItem(.flexible()), count: 7)
+    
+    var daysInMonth: Int {
+        Calendar.current.range(of: .day, in: .month, for: currentMonth)!.count
+    }
+    
+    var firstWeekdayOffset: Int {
+        let components = Calendar.current.dateComponents([.year, .month], from: currentMonth)
+        let firstDay = Calendar.current.date(from: components)!
+        let weekday = Calendar.current.component(.weekday, from: firstDay)
+        return weekday - 1
+    }
     
     func getRecords(for day: Int) -> [WalkRecord] {
         records.filter { $0.day == day }
@@ -578,7 +689,11 @@ struct DiaryGridView: View {
                 Text(day).font(.system(size: 10, weight: .bold)).foregroundColor(.appBrown.opacity(0.4))
             }
             
-            ForEach(1...30, id: \.self) { day in
+            ForEach(0..<firstWeekdayOffset, id: \.self) { _ in
+                Color.clear.frame(height: 36)
+            }
+            
+            ForEach(1...daysInMonth, id: \.self) { day in
                 let dailyRecords = getRecords(for: day)
                 let hasDiary = dailyRecords.contains { $0.aiDiary != nil && !$0.aiDiary!.isEmpty }
                 

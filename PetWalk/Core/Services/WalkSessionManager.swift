@@ -8,9 +8,12 @@
 import Foundation
 import Combine
 import CoreLocation
+import ActivityKit
 
 @MainActor
 class WalkSessionManager: ObservableObject {
+    static let shared = WalkSessionManager()
+    
     // 状态：是否正在遛狗
     @Published var isWalking = false
     
@@ -29,9 +32,13 @@ class WalkSessionManager: ObservableObject {
     private var timer: Timer?
     private var startTime: Date?
     
+
     // 定位服务
     private let locationManager = LocationManager()
     private var cancellables = Set<AnyCancellable>()
+    
+    // Live Activity
+    private var activity: Activity<PetWalkAttributes>?
     
     // 暴露给 View 使用
     var locationService: LocationManager { locationManager }
@@ -71,6 +78,9 @@ class WalkSessionManager: ObservableObject {
         if LiveSessionManager.shared.isBroadcasting {
             LiveSessionManager.shared.broadcastLocation(location)
         }
+        
+        // 更新 Live Activity
+        updateLiveActivity()
         
         // 检测景点打卡
         if let landmark = LandmarkManager.shared.checkLocation(location) {
@@ -128,6 +138,9 @@ class WalkSessionManager: ObservableObject {
                 self?.updateStats()
             }
         }
+        
+        // 启动 Live Activity
+        startLiveActivity()
     }
     
     // 结束遛狗 - 返回 WalkSessionData 用于成就检测
@@ -140,6 +153,9 @@ class WalkSessionManager: ObservableObject {
         // 结束各管理器并获取数据
         let poiResult = POIDetector.shared.endSession()
         LandmarkManager.shared.endSession()
+        
+        // 结束 Live Activity
+        stopLiveActivity()
         
         // 捕获直播数据
         let wasBroadcasting = LiveSessionManager.shared.isBroadcasting
@@ -222,5 +238,82 @@ class WalkSessionManager: ObservableObject {
     
     var walkStartTime: Date {
         return startTime ?? Date()
+    }
+
+    
+    // MARK: - Live Activity Management
+    
+    func terminateAllActivities() {
+        Task {
+            for activity in Activity<PetWalkAttributes>.activities {
+                print("WalkSessionManager: Terminating existing activity id=\(activity.id)")
+                await activity.end(nil, dismissalPolicy: .immediate)
+            }
+        }
+    }
+
+    private func startLiveActivity() {
+        guard ActivityAuthorizationInfo().areActivitiesEnabled else { return }
+        
+        // 先清理可能残留的活动
+        terminateAllActivities()
+        
+        let attributes = PetWalkAttributes(petName: "Buddy", avatarImageName: "dog_avatar")
+        let contentState = PetWalkAttributes.ContentState(
+            distance: 0,
+            duration: 0,
+            currentSpeed: 0,
+            isMoving: false,
+            petMood: "happy"
+        )
+        
+        do {
+            let activity = try Activity.request(
+                attributes: attributes,
+                content: .init(state: contentState, staleDate: nil),
+                pushType: nil
+            )
+            self.activity = activity
+            print("WalkSessionManager: Live Activity started id=\(activity.id)")
+        } catch {
+            print("WalkSessionManager: Error starting Live Activity: \(error)")
+        }
+    }
+    
+    private func updateLiveActivity() {
+        guard let activity = activity else { return }
+        
+        let contentState = PetWalkAttributes.ContentState(
+            distance: distance,
+            duration: duration,
+            currentSpeed: currentSpeed,
+            isMoving: currentSpeed > 2.0, // 简单阈值：大于 2km/h 视为跑动
+            petMood: "happy"
+        )
+        
+        Task {
+            // 设置 5 分钟后过期，防止 App 意外崩溃后灵动岛一直卡住
+            let staleDate = Date().addingTimeInterval(300) 
+            await activity.update(.init(state: contentState, staleDate: staleDate))
+        }
+    }
+    
+    private func stopLiveActivity() {
+        guard let activity = activity else { return }
+        
+        let finalContent = PetWalkAttributes.ContentState(
+            distance: distance,
+            duration: duration,
+            currentSpeed: 0,
+            isMoving: false,
+            petMood: "happy"
+        )
+        
+        Task {
+            await activity.end(.init(state: finalContent, staleDate: nil), dismissalPolicy: .immediate)
+            self.activity = nil
+            // 再次确保清理其他可能的活动
+            terminateAllActivities() 
+        }
     }
 }

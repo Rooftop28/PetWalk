@@ -15,7 +15,7 @@ struct HomeView: View {
     @StateObject private var healthManager = HealthManager()
     
     // 引入遛狗会话管理器 (单次数据)
-    @StateObject private var walkManager = WalkSessionManager()
+    @ObservedObject private var walkManager = WalkSessionManager.shared
     
     // 引入数据管理器 (用于获取上次遛狗时间)
     @ObservedObject private var dataManager = DataManager.shared

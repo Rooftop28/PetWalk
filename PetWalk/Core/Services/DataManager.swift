@@ -125,7 +125,10 @@ class DataManager: ObservableObject {
                 WalkRecord(day: 3, date: "12月3日", time: "20:30", distance: 1.5, duration: 25, mood: "happy", imageName: nil, route: nil, itemsFound: nil, bonesEarned: nil),
                 
                 // 12月4日 (1次, 0.5km)
-                WalkRecord(day: 4, date: "12月4日", time: "21:00", distance: 0.5, duration: 8, mood: "tired", imageName: nil, route: nil, itemsFound: nil, bonesEarned: nil)
+                WalkRecord(day: 4, date: "12月4日", time: "21:00", distance: 0.5, duration: 8, mood: "tired", imageName: nil, route: nil, itemsFound: nil, bonesEarned: nil),
+                
+                // 1月15日 (测试跨年/不同月份显示)
+                WalkRecord(day: 15, date: "1月15日", time: "10:00", distance: 2.5, duration: 40, mood: "excited", imageName: nil, route: nil, itemsFound: nil, bonesEarned: nil)
             ]
         }
     }
