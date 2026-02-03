@@ -45,6 +45,10 @@ struct WalkSummaryView: View {
     @State private var isGeneratingDiary = false
     @State private var diaryError: String? = nil
     
+    // 主人手写日志 State
+    @State private var ownerNote: String = ""
+    @FocusState private var isNoteFieldFocused: Bool
+    
     // 初始化
     init(sessionData: WalkSessionData, routeCoordinates: [RoutePoint], onFinish: @escaping () -> Void) {
         self.sessionData = sessionData
@@ -149,52 +153,8 @@ struct WalkSummaryView: View {
                     .padding(.horizontal)
                     .transition(.scale)
                     
-                    // 2.8 AI 日记展示
-                    VStack(alignment: .leading, spacing: 15) {
-                        HStack {
-                            Text("🐶 狗狗日记")
-                                .font(.headline)
-                                .foregroundColor(.appBrown)
-                            
-                            if isGeneratingDiary {
-                                ProgressView()
-                                    .scaleEffect(0.8)
-                            }
-                        }
-                        
-                        ZStack(alignment: .topLeading) {
-                            RoundedRectangle(cornerRadius: 15)
-                                .fill(Color.white)
-                                .shadow(color: .black.opacity(0.05), radius: 5)
-                            
-                            if !aiDiaryContent.isEmpty {
-                                Text(aiDiaryContent)
-                                    .font(.system(.body, design: .serif))
-                                    .foregroundColor(.primary)
-                                    .padding()
-                                    .lineSpacing(4)
-                            } else if isGeneratingDiary {
-                                Text("正在从狗狗视角回忆这次散步...")
-                                    .italic()
-                                    .foregroundColor(.gray)
-                                    .padding()
-                            } else if let error = diaryError {
-                                HStack {
-                                    Image(systemName: "exclamationmark.triangle.fill")
-                                        .foregroundColor(.orange)
-                                    Text("日记生成失败: \(error)")
-                                }
-                                .font(.caption)
-                                .foregroundColor(.gray)
-                                .padding()
-                            } else {
-                                Text("日记准备中...")
-                                    .foregroundColor(.gray.opacity(0.5))
-                                    .padding()
-                            }
-                        }
-                        .frame(minHeight: 120) // Ensure some height
-                    }
+                    // 2.8 日记/日志区域
+                    diarySection
                     .padding(.horizontal)
                     
                     // 3. 心情选择
@@ -319,12 +279,151 @@ struct WalkSummaryView: View {
         .onAppear {
             calculateRewards()
             generateAiDiary()
+            
+            // 播放狗叫声（如果有录制）
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                VoiceRecordingManager.shared.playForNotification()
+            }
+        }
+    }
+    
+    // MARK: - 日记区域视图
+    
+    @ViewBuilder
+    private var diarySection: some View {
+        if dataManager.userData.aiDiaryEnabled {
+            // AI 狗狗日记模式
+            aiDiarySectionView
+        } else {
+            // 主人手写日志模式
+            ownerNoteSectionView
+        }
+    }
+    
+    // AI 狗狗日记视图
+    private var aiDiarySectionView: some View {
+        VStack(alignment: .leading, spacing: 15) {
+            HStack {
+                Text("🐶 狗狗日记")
+                    .font(.headline)
+                    .foregroundColor(.appBrown)
+                
+                if isGeneratingDiary {
+                    ProgressView()
+                        .scaleEffect(0.8)
+                }
+                
+                Spacer()
+                
+                // 切换到手写模式的按钮
+                Button {
+                    var userData = dataManager.userData
+                    userData.aiDiaryEnabled = false
+                    dataManager.updateUserData(userData)
+                } label: {
+                    Text("改为手写")
+                        .font(.caption)
+                        .foregroundColor(.appGreenMain)
+                }
+            }
+            
+            ZStack(alignment: .topLeading) {
+                RoundedRectangle(cornerRadius: 15)
+                    .fill(Color.white)
+                    .shadow(color: .black.opacity(0.05), radius: 5)
+                
+                if !aiDiaryContent.isEmpty {
+                    Text(aiDiaryContent)
+                        .font(.system(.body, design: .serif))
+                        .foregroundColor(.primary)
+                        .padding()
+                        .lineSpacing(4)
+                } else if isGeneratingDiary {
+                    Text("正在从狗狗视角回忆这次散步...")
+                        .italic()
+                        .foregroundColor(.gray)
+                        .padding()
+                } else if let error = diaryError {
+                    HStack {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundColor(.orange)
+                        Text("日记生成失败: \(error)")
+                    }
+                    .font(.caption)
+                    .foregroundColor(.gray)
+                    .padding()
+                } else {
+                    Text("日记准备中...")
+                        .foregroundColor(.gray.opacity(0.5))
+                        .padding()
+                }
+            }
+            .frame(minHeight: 120)
+        }
+    }
+    
+    // 主人手写日志视图
+    private var ownerNoteSectionView: some View {
+        VStack(alignment: .leading, spacing: 15) {
+            HStack {
+                Text("📝 遛狗日志")
+                    .font(.headline)
+                    .foregroundColor(.appBrown)
+                
+                Spacer()
+                
+                // 切换到 AI 日记模式的按钮
+                if !dataManager.userData.petProfile.breed.isEmpty {
+                    Button {
+                        var userData = dataManager.userData
+                        userData.aiDiaryEnabled = true
+                        dataManager.updateUserData(userData)
+                        generateAiDiary()
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "sparkles")
+                            Text("AI 生成")
+                        }
+                        .font(.caption)
+                        .foregroundColor(.appGreenMain)
+                    }
+                }
+            }
+            
+            ZStack(alignment: .topLeading) {
+                RoundedRectangle(cornerRadius: 15)
+                    .fill(Color.white)
+                    .shadow(color: .black.opacity(0.05), radius: 5)
+                
+                if ownerNote.isEmpty && !isNoteFieldFocused {
+                    Text("记录一下今天的遛狗心情吧...")
+                        .foregroundColor(.gray.opacity(0.5))
+                        .padding()
+                }
+                
+                TextEditor(text: $ownerNote)
+                    .font(.system(.body, design: .serif))
+                    .padding(12)
+                    .scrollContentBackground(.hidden)
+                    .background(Color.clear)
+                    .focused($isNoteFieldFocused)
+            }
+            .frame(minHeight: 120)
+            
+            // 字数统计
+            HStack {
+                Spacer()
+                Text("\(ownerNote.count) 字")
+                    .font(.caption)
+                    .foregroundColor(.gray)
+            }
         }
     }
     
     // 生成 AI 日记
     private func generateAiDiary() {
         guard !dataManager.userData.petProfile.breed.isEmpty else { return } // No profile, no diary
+        guard dataManager.userData.aiDiaryEnabled else { return } // Check if AI diary is enabled
         
         isGeneratingDiary = true
         diaryError = nil
@@ -374,12 +473,18 @@ struct WalkSummaryView: View {
         // 计算骨头币
         let bones = GameSystem.shared.calculateBones(distanceKm: distance)
         
-        // 检测成就（需要先获取副本，修改后再设置回去）
+        // 检测成就（预览模式，不更新统计数据）
         // 使用完整的 sessionData 进行成就检测（包含天气、POI 等信息）
-        var userData = dataManager.userData
+        // 注意：这里创建临时副本用于预览，不修改实际数据
+        var tempUserData = dataManager.userData
+        // 先手动模拟统计数据增加，以便正确检测成就
+        tempUserData.totalWalks += 1
+        tempUserData.totalDistance += sessionData.distance
+        
         let achievements = AchievementManager.shared.checkAndUnlockAchievements(
-            userData: &userData,
-            sessionData: sessionData
+            userData: &tempUserData,
+            sessionData: sessionData,
+            updateStats: false  // 不再次更新统计，因为已经手动加过了
         )
         
         // 计算成就奖励的骨头币
@@ -412,10 +517,11 @@ struct WalkSummaryView: View {
         currentUserData.totalBones += earnedBones
         currentUserData.lastWalkDate = Date()
         
-        // 再次调用成就检测以确保数据一致性（已经解锁的不会重复解锁）
+        // 正式检测并解锁成就（更新统计数据）
         _ = AchievementManager.shared.checkAndUnlockAchievements(
             userData: &currentUserData,
-            sessionData: sessionData
+            sessionData: sessionData,
+            updateStats: true  // 这是唯一一次更新统计数据
         )
         
         dataManager.updateUserData(currentUserData)
@@ -440,6 +546,20 @@ struct WalkSummaryView: View {
         let timeFormatter = DateFormatter()
         timeFormatter.dateFormat = "HH:mm"
         
+        // 根据设置决定保存 AI 日记还是主人日志
+        let diaryContent: String?
+        let diaryGeneratedAt: Date?
+        
+        if dataManager.userData.aiDiaryEnabled {
+            // AI 日记模式
+            diaryContent = fullDiaryContent.isEmpty ? (aiDiaryContent.isEmpty ? nil : aiDiaryContent) : fullDiaryContent
+            diaryGeneratedAt = (fullDiaryContent.isEmpty && aiDiaryContent.isEmpty) ? nil : Date()
+        } else {
+            // 主人手写日志模式
+            diaryContent = ownerNote.isEmpty ? nil : ownerNote
+            diaryGeneratedAt = ownerNote.isEmpty ? nil : Date()
+        }
+        
         let record = WalkRecord(
             day: day,
             date: dateFormatter.string(from: now),
@@ -453,14 +573,26 @@ struct WalkSummaryView: View {
             itemsFound: nil, // 不再使用物品系统
             bonesEarned: earnedBones,
             isCloudWalk: false,
-            aiDiary: fullDiaryContent.isEmpty ? (aiDiaryContent.isEmpty ? nil : aiDiaryContent) : fullDiaryContent,
-            aiDiaryGeneratedAt: fullDiaryContent.isEmpty && aiDiaryContent.isEmpty ? nil : Date()
+            aiDiary: diaryContent,
+            aiDiaryGeneratedAt: diaryGeneratedAt
         )
         
         // 3. 存入 DataManager
         dataManager.addRecord(record)
         
-        // 4. 关闭页面
+        // 4. 触发云同步（成就数据）
+        Task {
+            await CloudSyncManager.shared.uploadToCloud()
+            
+            // 5. 更新排行榜数据
+            let updatedUserData = dataManager.userData
+            await SupabaseLeaderboardManager.shared.submitUserData(
+                totalDistance: updatedUserData.totalDistance,
+                totalWalks: updatedUserData.totalWalks
+            )
+        }
+        
+        // 6. 关闭页面
         onFinish()
     }
     

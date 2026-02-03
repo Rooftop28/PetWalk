@@ -12,6 +12,8 @@
 	<string>PetWalk 需要发送通知来提醒你每日遛狗，以及接收好友的催促消息。</string>
 	<key>NSCameraUsageDescription</key>
 	<string>PetWalk 需要访问摄像头，以便在遛狗结束后拍照留念。</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>PetWalk 需要访问麦克风，以便录制狗狗的叫声作为专属提示音。</string>
 	<key>NSSupportsLiveActivities</key>
 	<true/>
 </dict>

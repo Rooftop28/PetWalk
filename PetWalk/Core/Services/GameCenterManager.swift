@@ -75,6 +75,7 @@ class GameCenterManager: NSObject, ObservableObject {
     @Published var localPlayer: GKLocalPlayer?
     @Published var isLoading: Bool = false
     @Published var errorMessage: String?
+    @Published var needsSystemLogin: Bool = false  // 需要去系统设置登录
     
     // 缓存的排行榜数据
     @Published var globalLeaderboard: [LeaderboardEntry] = []
@@ -95,42 +96,118 @@ class GameCenterManager: NSObject, ObservableObject {
     
     // MARK: - 认证
     
+    private var hasSetupAuthHandler = false
+    
     /// 认证 Game Center
     func authenticate() {
         let player = GKLocalPlayer.local
         
+        // 如果已经认证，直接返回
+        if player.isAuthenticated {
+            print("GameCenter: 已经认证 - \(player.displayName)")
+            self.isAuthenticated = true
+            self.localPlayer = player
+            self.needsSystemLogin = false
+            self.errorMessage = nil
+            
+            Task {
+                await self.loadLeaderboards()
+                await self.loadAchievementRarities()
+            }
+            return
+        }
+        
+        isLoading = true
+        errorMessage = nil
+        needsSystemLogin = false
+        
+        // authenticateHandler 只能设置一次，之后会自动触发
+        // 如果已经设置过，需要检查当前状态
+        if hasSetupAuthHandler {
+            print("GameCenter: Handler 已设置，检查当前状态")
+            isLoading = false
+            
+            if !player.isAuthenticated {
+                // 玩家未认证，需要引导去设置
+                needsSystemLogin = true
+                print("GameCenter: 用户需要在系统设置中登录")
+            }
+            return
+        }
+        
+        hasSetupAuthHandler = true
+        print("GameCenter: 设置认证 Handler")
+        
         player.authenticateHandler = { [weak self] viewController, error in
             Task { @MainActor in
-                if let error = error {
-                    self?.errorMessage = error.localizedDescription
-                    self?.isAuthenticated = false
-                    print("GameCenter: 认证失败 - \(error.localizedDescription)")
-                    return
-                }
+                self?.isLoading = false
                 
-                if let viewController = viewController {
-                    // 需要显示登录界面
-                    if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-                       let rootVC = windowScene.windows.first?.rootViewController {
-                        rootVC.present(viewController, animated: true)
+                if let error = error {
+                    let nsError = error as NSError
+                    self?.isAuthenticated = false
+                    
+                    print("GameCenter: 认证失败 - domain: \(nsError.domain), code: \(nsError.code), \(error.localizedDescription)")
+                    
+                    if nsError.domain == GKErrorDomain {
+                        switch nsError.code {
+                        case 2:
+                            self?.errorMessage = "登录已取消"
+                            print("GameCenter: 用户取消了登录")
+                        case 3, 6:
+                            self?.needsSystemLogin = true
+                            self?.errorMessage = nil
+                            print("GameCenter: 需要在系统设置中登录 Game Center")
+                        default:
+                            self?.errorMessage = error.localizedDescription
+                        }
+                    } else {
+                        if error.localizedDescription.contains("not been authenticated") ||
+                           error.localizedDescription.contains("未认证") {
+                            self?.needsSystemLogin = true
+                            self?.errorMessage = nil
+                        } else {
+                            self?.errorMessage = error.localizedDescription
+                        }
                     }
                     return
                 }
                 
-                // 认证成功
+                if let viewController = viewController {
+                    print("GameCenter: 显示登录界面")
+                    if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+                       let rootVC = windowScene.windows.first?.rootViewController {
+                        var topVC = rootVC
+                        while let presented = topVC.presentedViewController {
+                            topVC = presented
+                        }
+                        topVC.present(viewController, animated: true)
+                    }
+                    return
+                }
+                
+                // 检查认证状态
                 self?.isAuthenticated = player.isAuthenticated
                 self?.localPlayer = player
                 
                 if player.isAuthenticated {
                     print("GameCenter: 认证成功 - \(player.displayName)")
+                    self?.needsSystemLogin = false
+                    self?.errorMessage = nil
                     
-                    // 加载排行榜数据
                     await self?.loadLeaderboards()
-                    
-                    // 加载成就稀有度
                     await self?.loadAchievementRarities()
+                } else {
+                    self?.needsSystemLogin = true
+                    print("GameCenter: 用户未登录，需要在系统设置中登录")
                 }
             }
+        }
+    }
+    
+    /// 打开系统设置
+    func openSettings() {
+        if let url = URL(string: UIApplication.openSettingsURLString) {
+            UIApplication.shared.open(url)
         }
     }
     

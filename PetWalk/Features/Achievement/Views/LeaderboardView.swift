@@ -7,10 +7,12 @@
 
 import SwiftUI
 
-/// 排行榜视图
+/// 排行榜视图 (Supabase 版)
 struct LeaderboardView: View {
     @ObservedObject var gameCenter = GameCenterManager.shared
-    @State private var selectedTab: LeaderboardType = .global
+    @ObservedObject var leaderboardManager = SupabaseLeaderboardManager.shared
+    @State private var selectedTab: SupabaseLeaderboardType = .global
+    @State private var showRegionPicker = false
     
     var body: some View {
         NavigationView {
@@ -39,6 +41,27 @@ struct LeaderboardView: View {
             .onAppear {
                 if !gameCenter.isAuthenticated {
                     gameCenter.authenticate()
+                } else {
+                    // 已认证，加载排行榜
+                    Task {
+                        await leaderboardManager.initializeUserProfile()
+                        await leaderboardManager.loadAllLeaderboards()
+                    }
+                }
+            }
+            .onChange(of: gameCenter.isAuthenticated) { _, isAuth in
+                if isAuth {
+                    Task {
+                        await leaderboardManager.initializeUserProfile()
+                        await leaderboardManager.loadAllLeaderboards()
+                    }
+                }
+            }
+            .sheet(isPresented: $showRegionPicker) {
+                RegionPickerView { region in
+                    Task {
+                        await leaderboardManager.updateUserRegion(region)
+                    }
                 }
             }
         }
@@ -48,7 +71,7 @@ struct LeaderboardView: View {
     
     private var leaderboardTabPicker: some View {
         HStack(spacing: 0) {
-            ForEach(LeaderboardType.allCases, id: \.self) { type in
+            ForEach(SupabaseLeaderboardType.allCases, id: \.self) { type in
                 Button {
                     withAnimation(.easeInOut(duration: 0.2)) {
                         selectedTab = type
@@ -85,12 +108,15 @@ struct LeaderboardView: View {
     private var leaderboardContent: some View {
         VStack {
             // 当前玩家排名卡片
-            if let rank = currentPlayerRank {
-                currentPlayerCard(rank: rank)
+            currentPlayerCard
+            
+            // 同城榜地区选择提示
+            if selectedTab == .city {
+                cityLeaderboardHeader
             }
             
             // 排行榜列表
-            if gameCenter.isLoading {
+            if leaderboardManager.isLoading {
                 Spacer()
                 ProgressView("加载中...")
                 Spacer()
@@ -100,36 +126,27 @@ struct LeaderboardView: View {
         }
     }
     
-    private var currentPlayerRank: Int? {
-        switch selectedTab {
-        case .global:
-            return gameCenter.currentPlayerGlobalRank
-        case .friends:
-            return gameCenter.currentPlayerFriendsRank
-        case .city:
-            return nil
-        }
-    }
-    
-    private var currentLeaderboard: [LeaderboardEntry] {
-        switch selectedTab {
-        case .global:
-            return gameCenter.globalLeaderboard
-        case .friends:
-            return gameCenter.friendsLeaderboard
-        case .city:
-            return gameCenter.cityLeaderboard
-        }
-    }
-    
-    // MARK: - 当前玩家排名卡片
-    
-    private func currentPlayerCard(rank: Int) -> some View {
-        HStack(spacing: 16) {
+    private var currentPlayerCard: some View {
+        let userData = DataManager.shared.userData
+        let rank: Int? = {
+            switch selectedTab {
+            case .global: return leaderboardManager.currentPlayerGlobalRank
+            case .city: return leaderboardManager.currentPlayerCityRank
+            case .friends: return nil
+            }
+        }()
+        
+        return HStack(spacing: 16) {
             // 排名
-            Text("#\(rank)")
-                .font(.system(size: 28, weight: .bold))
-                .foregroundColor(.appGreenMain)
+            if let rank = rank {
+                Text("#\(rank)")
+                    .font(.system(size: 28, weight: .bold))
+                    .foregroundColor(.appGreenMain)
+            } else {
+                Text("--")
+                    .font(.system(size: 28, weight: .bold))
+                    .foregroundColor(.gray)
+            }
             
             VStack(alignment: .leading, spacing: 4) {
                 Text("我的排名")
@@ -142,7 +159,6 @@ struct LeaderboardView: View {
             Spacer()
             
             // 里程
-            let userData = DataManager.shared.userData
             VStack(alignment: .trailing, spacing: 4) {
                 Text("累计里程")
                     .font(.caption)
@@ -161,6 +177,43 @@ struct LeaderboardView: View {
         .padding(.top, 12)
     }
     
+    private var cityLeaderboardHeader: some View {
+        HStack {
+            if let region = leaderboardManager.currentUserRegion {
+                Label(region, systemImage: "location.fill")
+                    .font(.subheadline)
+                    .foregroundColor(.appGreenMain)
+            } else {
+                Text("未设置地区")
+                    .font(.subheadline)
+                    .foregroundColor(.gray)
+            }
+            
+            Spacer()
+            
+            Button {
+                showRegionPicker = true
+            } label: {
+                Text("切换城市")
+                    .font(.caption)
+                    .foregroundColor(.appGreenMain)
+            }
+        }
+        .padding(.horizontal)
+        .padding(.top, 8)
+    }
+    
+    private var currentLeaderboard: [SupabaseLeaderboardEntry] {
+        switch selectedTab {
+        case .global:
+            return leaderboardManager.globalLeaderboard
+        case .city:
+            return leaderboardManager.cityLeaderboard
+        case .friends:
+            return leaderboardManager.friendsLeaderboard
+        }
+    }
+    
     // MARK: - 排行榜列表
     
     private var leaderboardList: some View {
@@ -170,11 +223,10 @@ struct LeaderboardView: View {
                     emptyLeaderboardView
                 } else {
                     ForEach(currentLeaderboard) { entry in
-                        LeaderboardEntryRow(
-                            entry: entry, 
+                        SupabaseLeaderboardEntryRow(
+                            entry: entry,
                             showMedal: entry.rank <= 3,
-                            showNudgeButton: selectedTab == .friends && !entry.isCurrentPlayer,
-                            canNudge: entry.gameCenterID.map { DataManager.shared.userData.canNudgeFriend($0) } ?? true
+                            showRegion: selectedTab == .city
                         )
                     }
                 }
@@ -183,7 +235,14 @@ struct LeaderboardView: View {
             .padding(.top, 12)
         }
         .refreshable {
-            await gameCenter.loadLeaderboard(type: selectedTab)
+            switch selectedTab {
+            case .global:
+                await leaderboardManager.loadGlobalLeaderboard()
+            case .city:
+                await leaderboardManager.loadCityLeaderboard()
+            case .friends:
+                await leaderboardManager.loadFriendsLeaderboard()
+            }
         }
     }
     
@@ -195,10 +254,18 @@ struct LeaderboardView: View {
             Text("暂无数据")
                 .font(.headline)
                 .foregroundColor(.gray)
-            Text("完成遛狗后，你的成绩将显示在这里")
-                .font(.caption)
-                .foregroundColor(.gray.opacity(0.7))
-                .multilineTextAlignment(.center)
+            
+            if selectedTab == .friends {
+                Text("好友功能开发中...")
+                    .font(.caption)
+                    .foregroundColor(.gray.opacity(0.7))
+                    .multilineTextAlignment(.center)
+            } else {
+                Text("完成遛狗后，你的成绩将显示在这里")
+                    .font(.caption)
+                    .foregroundColor(.gray.opacity(0.7))
+                    .multilineTextAlignment(.center)
+            }
         }
         .padding(.top, 60)
     }
@@ -222,16 +289,63 @@ struct LeaderboardView: View {
                 .foregroundColor(.gray)
                 .multilineTextAlignment(.center)
             
-            Button {
-                gameCenter.authenticate()
-            } label: {
-                Text("登录 Game Center")
-                    .font(.headline)
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 30)
-                    .padding(.vertical, 14)
-                    .background(Color.appGreenMain)
-                    .cornerRadius(12)
+            // 根据状态显示不同按钮
+            if gameCenter.isLoading {
+                ProgressView()
+                    .padding()
+            } else if gameCenter.needsSystemLogin || 
+                      (gameCenter.errorMessage?.contains("not been authenticated") == true) {
+                // 需要去系统设置登录
+                VStack(spacing: 12) {
+                    Text("请先在系统设置中登录 Game Center")
+                        .font(.callout)
+                        .foregroundColor(.orange)
+                    
+                    Button {
+                        gameCenter.openSettings()
+                    } label: {
+                        HStack {
+                            Image(systemName: "gear")
+                            Text("打开设置")
+                        }
+                        .font(.headline)
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 30)
+                        .padding(.vertical, 14)
+                        .background(Color.blue)
+                        .cornerRadius(12)
+                    }
+                    
+                    Button {
+                        gameCenter.authenticate()
+                    } label: {
+                        Text("我已登录，重试")
+                            .font(.subheadline)
+                            .foregroundColor(.appGreenMain)
+                    }
+                    .padding(.top, 8)
+                }
+            } else {
+                // 显示错误信息（如果不是需要系统登录的错误）
+                if let error = gameCenter.errorMessage {
+                    Text(error)
+                        .font(.caption)
+                        .foregroundColor(.red)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal)
+                }
+                
+                Button {
+                    gameCenter.authenticate()
+                } label: {
+                    Text("登录 Game Center")
+                        .font(.headline)
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 30)
+                        .padding(.vertical, 14)
+                        .background(Color.appGreenMain)
+                        .cornerRadius(12)
+                }
             }
             
             Spacer()
@@ -240,15 +354,11 @@ struct LeaderboardView: View {
     }
 }
 
-// MARK: - 排行榜条目行
-struct LeaderboardEntryRow: View {
-    let entry: LeaderboardEntry
+// MARK: - Supabase 排行榜条目行
+struct SupabaseLeaderboardEntryRow: View {
+    let entry: SupabaseLeaderboardEntry
     var showMedal: Bool = false
-    var showNudgeButton: Bool = false
-    var canNudge: Bool = true
-    
-    @State private var isNudging = false
-    @State private var nudgeSent = false
+    var showRegion: Bool = false
     
     var body: some View {
         HStack(spacing: 12) {
@@ -260,31 +370,30 @@ struct LeaderboardEntryRow: View {
             
             // 玩家信息
             VStack(alignment: .leading, spacing: 2) {
-                Text(entry.playerName)
+                Text(entry.displayName)
                     .font(.subheadline)
                     .fontWeight(entry.isCurrentPlayer ? .semibold : .regular)
                     .foregroundColor(entry.isCurrentPlayer ? .appGreenMain : .primary)
                 
-                if let city = entry.city {
-                    Text(city)
-                        .font(.caption)
-                        .foregroundColor(.gray)
+                if showRegion, let region = entry.region {
+                    HStack(spacing: 4) {
+                        Image(systemName: "location.fill")
+                            .font(.system(size: 10))
+                        Text(region)
+                    }
+                    .font(.caption)
+                    .foregroundColor(.gray)
                 }
             }
             
             Spacer()
             
-            // 催促按钮（好友榜）
-            if showNudgeButton {
-                nudgeButton
-            }
-            
             // 分数
             VStack(alignment: .trailing, spacing: 2) {
-                Text(formatDistance(entry.score))
+                Text(entry.formattedDistance)
                     .font(.subheadline)
                     .fontWeight(.medium)
-                Text("累计里程")
+                Text("\(entry.totalWalks) 次遛狗")
                     .font(.caption2)
                     .foregroundColor(.gray)
             }
@@ -299,57 +408,6 @@ struct LeaderboardEntryRow: View {
             RoundedRectangle(cornerRadius: 10)
                 .stroke(entry.isCurrentPlayer ? Color.appGreenMain : Color.gray.opacity(0.2), lineWidth: 1)
         )
-    }
-    
-    // MARK: - 催促按钮
-    private var nudgeButton: some View {
-        Button {
-            sendNudge()
-        } label: {
-            HStack(spacing: 4) {
-                if isNudging {
-                    ProgressView()
-                        .scaleEffect(0.7)
-                } else if nudgeSent || !canNudge {
-                    Image(systemName: "checkmark")
-                        .font(.caption)
-                } else {
-                    Image(systemName: "bell.badge.fill")
-                        .font(.caption)
-                }
-                
-                Text(nudgeSent || !canNudge ? "已催" : "催一下")
-                    .font(.caption)
-            }
-            .foregroundColor(nudgeSent || !canNudge ? .gray : .white)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .background(
-                Capsule()
-                    .fill(nudgeSent || !canNudge ? Color.gray.opacity(0.3) : Color.orange)
-            )
-        }
-        .disabled(isNudging || nudgeSent || !canNudge)
-    }
-    
-    private func sendNudge() {
-        guard let friendId = entry.gameCenterID else { return }
-        
-        isNudging = true
-        
-        Task {
-            let success = await NotificationManager.shared.sendFriendNudge(
-                to: friendId,
-                friendName: entry.playerName
-            )
-            
-            await MainActor.run {
-                isNudging = false
-                if success {
-                    nudgeSent = true
-                }
-            }
-        }
     }
     
     private var rankView: some View {
@@ -388,12 +446,21 @@ struct LeaderboardEntryRow: View {
     
     private var avatarView: some View {
         Group {
-            if let image = entry.avatarImage {
-                Image(uiImage: image)
-                    .resizable()
-                    .scaledToFill()
-                    .frame(width: 40, height: 40)
-                    .clipShape(Circle())
+            if let urlString = entry.avatarUrl, let url = URL(string: urlString) {
+                AsyncImage(url: url) { image in
+                    image
+                        .resizable()
+                        .scaledToFill()
+                } placeholder: {
+                    Circle()
+                        .fill(Color.gray.opacity(0.2))
+                        .overlay(
+                            Image(systemName: "person.fill")
+                                .foregroundColor(.gray)
+                        )
+                }
+                .frame(width: 40, height: 40)
+                .clipShape(Circle())
             } else {
                 Circle()
                     .fill(Color.gray.opacity(0.2))
@@ -405,15 +472,39 @@ struct LeaderboardEntryRow: View {
             }
         }
     }
+}
+
+// MARK: - 地区选择器
+struct RegionPickerView: View {
+    @Environment(\.dismiss) private var dismiss
+    let onSelect: (String) -> Void
     
-    private func formatDistance(_ meters: Int) -> String {
-        let km = Double(meters) / 1000.0
-        if km >= 1000 {
-            return String(format: "%.1fk km", km / 1000)
-        } else if km >= 100 {
-            return String(format: "%.0f km", km)
-        } else {
-            return String(format: "%.1f km", km)
+    let regions = [
+        "北京", "上海", "广州", "深圳", "杭州", "成都", "南京", "武汉",
+        "西安", "重庆", "苏州", "天津", "青岛", "厦门", "长沙", "郑州",
+        "东莞", "佛山", "宁波", "合肥", "昆明", "沈阳", "大连", "无锡"
+    ]
+    
+    var body: some View {
+        NavigationView {
+            List(regions, id: \.self) { region in
+                Button {
+                    onSelect(region)
+                    dismiss()
+                } label: {
+                    Text(region)
+                        .foregroundColor(.primary)
+                }
+            }
+            .navigationTitle("选择城市")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("取消") {
+                        dismiss()
+                    }
+                }
+            }
         }
     }
 }

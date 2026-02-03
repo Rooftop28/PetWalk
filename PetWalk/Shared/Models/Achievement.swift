@@ -387,7 +387,7 @@ struct Achievement: Identifiable, Codable, Hashable {
         Achievement(
             id: "environment_early_bird",
             name: "早起的鸟儿",
-            description: "在早上 6 点前完成一次遛狗。",
+            description: "在早上 6:00-7:00 之间完成一次遛狗。",
             category: .environment,
             requirement: 1,
             rewardBones: 30,

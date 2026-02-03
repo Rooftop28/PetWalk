@@ -456,8 +456,84 @@ HistoryView 的升级让 App 完成了从“工具”到“情感记录本”的
   3. 在 `PetWalkApp.swift` 中用 `Task { await ... }` 包裹异步调用。
 - **涉及文件**: `PetWalkLiveActivity.swift`, `WalkSessionManager.swift`, `PetWalkApp.swift`
 
+### 3. ☁️ 成就云同步 (Cloud Sync)
+- **问题**: 成就数据仅存储在本地，换机或重装后会丢失。
+- **解决方案**:
+  1. 创建 `CloudSyncManager` 单例，使用 Supabase Database 存储。
+  2. 使用 Game Center `gamePlayerID` 作为用户标识符（无需额外注册）。
+  3. 实现双向同步：
+     - **上传**: 遛狗结束保存记录后自动上传。
+     - **下载**: App 启动时自动拉取云端数据。
+     - **合并策略**: 成就/称号/主题取"并集"，数值类取"最大值"。
+  4. 提供 `supabase_schema.sql` 脚本用于创建数据库表。
+- **涉及文件**: 
+  - 新增: `CloudSyncManager.swift`, `supabase_schema.sql`
+  - 修改: `AppInitializer.swift`, `WalkSummaryView.swift`
+
+### 4. 🎮 Game Center 登录修复
+- **问题**: 点击登录 Game Center 按钮没有效果。
+- **根因分析**:
+  1. 缺少 Game Center capability 在 entitlements 文件中。
+  2. `authenticateHandler` 只能设置一次，重复调用时不会触发。
+  3. 对于已拒绝或需要系统登录的情况，没有正确的 UI 反馈。
+- **解决方案**:
+  1. 在 `PetWalk.entitlements` 中添加 `com.apple.developer.game-center` 权限。
+  2. 改进 `GameCenterManager.authenticate()` 逻辑：检测是否已设置 handler，直接检查 `isAuthenticated` 状态。
+  3. 新增 `needsSystemLogin` 状态和 `openSettings()` 方法，引导用户去系统设置登录。
+  4. 优化 `LeaderboardView` 显示更友好的错误提示和"打开设置"按钮。
+- **涉及文件**: `GameCenterManager.swift`, `LeaderboardView.swift`, `PetWalk.entitlements`
+
+### 5. 🏆 Supabase 自建排行榜
+- **背景**: Game Center 排行榜需要在 App Store Connect 配置，且不支持同城排行。
+- **解决方案**: 使用 Supabase Database 自建排行榜系统。
+- **实现**:
+  1. **SupabaseLeaderboardManager**: 新服务，从 Supabase 视图 (`leaderboard_distance`, `leaderboard_by_region`) 获取排行榜数据。
+  2. **数据模型**: 创建 `SupabaseLeaderboardEntry` 结构体，支持 Codable 解析。
+  3. **UI 重构**: `LeaderboardView` 改为从 Supabase 获取数据，新增城市选择器。
+  4. **数据同步**: 遛狗结束后自动提交用户数据到 Supabase。
+- **优势**:
+  - 完全控制排行榜逻辑
+  - 支持同城排行（按 `region` 字段筛选）
+  - 可以使用测试数据验证 UI
+- **涉及文件**: 
+  - 新增: `SupabaseLeaderboardManager.swift`
+  - 修改: `LeaderboardView.swift`, `WalkSummaryView.swift`
+
+### 6. 📝 主人手写日志 + AI 日记可选
+- **需求**: 遛狗结束后，主人可以选择自己写日志，AI 狗狗日记设为可选。
+- **实现**:
+  1. `UserData` 新增 `aiDiaryEnabled` 开关。
+  2. 设置页面新增「日记功能」Section，Toggle 控制 AI 日记。
+  3. `WalkSummaryView` 双模式：
+     - **AI 日记模式**：自动生成狗狗视角日记，右上角可切换"改为手写"。
+     - **主人手写模式**：TextEditor 输入框 + 字数统计，右上角可切换"AI 生成"。
+- **涉及文件**: `UserData.swift`, `ReminderSettingsView.swift (SettingsView)`, `WalkSummaryView.swift`
+
+### 7. 🐛 成就重复解锁 Bug 修复
+- **问题**: 每次遛狗结束都会触发"新手上路"成就。
+- **根因**: `checkAndUnlockAchievements()` 在 `WalkSummaryView` 中被调用两次（预览 + 保存），每次都执行 `totalWalks += 1`。
+- **解决方案**:
+  1. 给 `checkAndUnlockAchievements()` 添加 `updateStats: Bool` 参数。
+  2. **预览时** (`calculateRewards`)：`updateStats: false`，仅检测不更新。
+  3. **保存时** (`saveRecord`)：`updateStats: true`，正式更新统计。
+- **涉及文件**: `AchievementManager.swift`, `WalkSummaryView.swift`
+
+### 8. 🎤 狗叫声录制 (Voice ID - Phase 1)
+- **功能**: 录制狗狗叫声作为专属提示音。
+- **实现**:
+  1. **VoiceRecordingManager**: 录音服务，使用 `AVAudioRecorder` 录制 m4a，最长 2 秒，自动转换 caf 格式。
+  2. **VoiceRecordingView**: 录音 UI，圆形按钮 + 进度环 + 脉冲动画，支持试听/重录/删除。
+  3. **集成**:
+     - 设置页面：档案管理新增"录制叫声"入口。
+     - 遛狗结算：进入时播放狗叫声。
+     - 每日提醒：通知使用自定义铃声。
+  4. `Info.plist` 添加 `NSMicrophoneUsageDescription`。
+- **涉及文件**:
+  - 新增: `VoiceRecordingManager.swift`, `VoiceRecordingView.swift`
+  - 修改: `ReminderSettingsView.swift`, `NotificationManager.swift`, `WalkSummaryView.swift`, `Info.plist`
+
 ## 📝 总结
-修复了两个影响用户体验的关键 Bug。日历现在可以正确显示任意月份，灵动岛能够实时展示遛狗数据。
+今日是高产的一天！修复了 5 个 Bug（日历、灵动岛、Game Center 登录、成就重复解锁、排行榜数据源），实现了 4 个新功能（成就云同步、Supabase 排行榜、主人日志、狗叫声录制）。App 的云端能力和个性化体验都得到了显著提升。
 
 ---
 *记录人: Cursor AI Assistant*
@@ -470,7 +546,7 @@ HistoryView 的升级让 App 完成了从“工具”到“情感记录本”的
 *(Updated: 2026/02/02)*
 
 ## 优先处理 (High Priority)
-- [ ] **同城排行榜**: 结合地理位置信息实现同城筛选。
+- [x] ~~**同城排行榜**~~: ✅ 已完成 (2026/02/02) - 基于 Supabase `profiles.region` 字段实现。
 - [ ] **轨迹算法增强**:
     - [ ] 实现 `isClosedLoop` (闭环) 检测。
     - [ ] 实现 `spinCount` (原地转圈) 检测。
@@ -479,9 +555,29 @@ HistoryView 的升级让 App 完成了从“工具”到“情感记录本”的
 ## 积压任务 (Backlog)
 - [ ] **好友催促推送**: 目前仅为本地模拟，需接入后端实现真正的远程 Push 通知。
 - [ ] **首杀榜后端**: Game Center 不支持首杀记录，需自建 Supabase 表记录成就首次达成者。
-- [ ] **成就数据云同步**: 将成就状态同步至 Supabase Database 以防丢失。
+- [x] ~~**成就数据云同步**~~: ✅ 已完成 (2026/02/02)
+- [x] ~~**Supabase 自建排行榜**~~: ✅ 已完成 (2026/02/02) - 替代 Game Center 排行榜。
 - [ ] **Watch 端联动**: 实现 Watch 端独立计步和双向控制 (目前仅作为显示端)。
+
+## 近期完成 (Recently Completed)
+- [x] ~~**主人手写日志 + AI 日记可选**~~: ✅ 已完成 (2026/02/02) - 遛狗结束后可选择手写日志或 AI 生成狗狗日记。
 
 ## 未来展望 (Future)
 - [ ] **网红打卡点**: 社区维护的热门遛狗路线。
 - [ ] **多宠物支持**: 支持同时遛多只狗 (目前架构偏向单只)。
+- [ ] **好友排行榜**: 接入 Game Center 好友列表或自建好友系统。
+- [ ] 宣传口号“遛狗可视化”“隐形付出”“不要闲置Apple watch”
+- [ ] 音乐
+- [x] ~~上传狗叫声，独一无二的提示音~~: ✅ Phase 1 已完成 (2026/02/02) - 本地录制、播放、通知铃声。         
+- [ ]Phase 2（未来）：上传到 Supabase Storage，排行榜声音名片，云遛狗打招呼
+
+- [ ] 参考Apple watch运动里的图标，制作一个遛狗的图标
+- [ ] 完成遛狗后主人也可以选择写日志，“狗狗日记”的生成设置为可选是否生成，并在设置中添加
+- [ ] 夜间模式 -- 感觉删掉比较好，不变化，简单一些
+- [ ] 丰富首页宠物的语言、表情
+- [ ] 字体
+- [ ] 遛狗页面是否需要适配天气
+
+
+## bug
+- [ ] 在排行榜中，测试数据的beijing和我定位的“北京”不在同一个排行榜

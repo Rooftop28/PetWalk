@@ -48,18 +48,26 @@ class AchievementManager {
     // MARK: - 成就检测（遛狗结束后调用）
     
     /// 检测并解锁成就，返回新解锁的成就列表（扩展版）
+    /// - Parameters:
+    ///   - userData: 用户数据（会被修改以记录解锁的成就）
+    ///   - sessionData: 本次遛狗会话数据
+    ///   - updateStats: 是否更新统计数据（totalWalks, totalDistance, streak），默认为 true
+    ///                  注意：只应在最终保存时设为 true，预览时设为 false
     func checkAndUnlockAchievements(
         userData: inout UserData,
-        sessionData: WalkSessionData
+        sessionData: WalkSessionData,
+        updateStats: Bool = true
     ) -> [Achievement] {
         var newlyUnlocked: [Achievement] = []
         
-        // 更新统计数据
-        userData.totalWalks += 1
-        userData.totalDistance += sessionData.distance
-        
-        // 更新连续打卡
-        updateStreak(userData: &userData)
+        // 只有在需要时才更新统计数据（避免重复调用导致数据翻倍）
+        if updateStats {
+            userData.totalWalks += 1
+            userData.totalDistance += sessionData.distance
+            
+            // 更新连续打卡
+            updateStreak(userData: &userData)
+        }
         
         // 检测各类成就
         newlyUnlocked.append(contentsOf: checkDistanceAchievements(userData: &userData))
@@ -78,7 +86,8 @@ class AchievementManager {
     func checkAndUnlockAchievements(
         userData: inout UserData,
         walkDistance: Double,
-        walkStartTime: Date
+        walkStartTime: Date,
+        updateStats: Bool = true
     ) -> [Achievement] {
         let sessionData = WalkSessionData(
             distance: walkDistance,
@@ -90,7 +99,7 @@ class AchievementManager {
             passedRestaurantCount: 0,
             homeLoopCount: 0
         )
-        return checkAndUnlockAchievements(userData: &userData, sessionData: sessionData)
+        return checkAndUnlockAchievements(userData: &userData, sessionData: sessionData, updateStats: updateStats)
     }
     
     // MARK: - 里程类成就检测
@@ -234,8 +243,8 @@ class AchievementManager {
             unlocked.append(contentsOf: tryUnlock("environment_dark_knight", userData: &userData))
         }
         
-        // 早起的鸟儿 (6点前)
-        if hour < 6 {
+        // 早起的鸟儿 (6:00-7:00)
+        if hour >= 6 && hour < 7 {
             unlocked.append(contentsOf: tryUnlock("environment_early_bird", userData: &userData))
         }
         

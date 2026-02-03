@@ -337,11 +337,13 @@ struct ReminderSettingsView: View {
 // MARK: - 设置主页面（包含所有设置项入口）
 struct SettingsView: View {
     @ObservedObject var dataManager = DataManager.shared
+    @ObservedObject var voiceManager = VoiceRecordingManager.shared
     @Environment(\.dismiss) var dismiss
     
     @State private var showReminderSettings = false
     @State private var showEditProfile = false // This might be missing definition of EditProfileView elsewhere, but keeping for now as placeholder
     @State private var showPetProfileSetup = false
+    @State private var showVoiceRecording = false
     @State private var showAbout = false
     
     var body: some View {
@@ -399,8 +401,54 @@ struct SettingsView: View {
                                 showChevron: false // NavigationLink adds its own chevron
                             )
                         }
+                        
+                        // 狗叫声录制
+                        Button {
+                            showVoiceRecording = true
+                        } label: {
+                            SettingsRow(
+                                icon: "waveform.circle.fill",
+                                iconColor: .pink,
+                                title: "录制叫声",
+                                subtitle: voiceManager.hasRecordedVoice ? "已录制" : "未录制"
+                            )
+                        }
                     } header: {
                         Text("档案管理")
+                    }
+                    
+                    // 日记设置
+                    Section {
+                        Toggle(isOn: Binding(
+                            get: { dataManager.userData.aiDiaryEnabled },
+                            set: { newValue in
+                                var userData = dataManager.userData
+                                userData.aiDiaryEnabled = newValue
+                                dataManager.updateUserData(userData)
+                            }
+                        )) {
+                            HStack(spacing: 15) {
+                                Image(systemName: "text.book.closed.fill")
+                                    .font(.system(size: 18))
+                                    .foregroundColor(.appGreenMain)
+                                    .frame(width: 30, height: 30)
+                                    .background(Color.appGreenMain.opacity(0.15))
+                                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                                
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("AI 狗狗日记")
+                                        .foregroundColor(.primary)
+                                    Text("遛狗结束后自动生成狗狗视角日记")
+                                        .font(.caption)
+                                        .foregroundColor(.gray)
+                                }
+                            }
+                        }
+                        .tint(.appGreenMain)
+                    } header: {
+                        Text("日记功能")
+                    } footer: {
+                        Text("关闭后，遛狗结束时可以手动写日志记录")
                     }
                     
                     // 数据管理
@@ -453,6 +501,9 @@ struct SettingsView: View {
             }
             .sheet(isPresented: $showReminderSettings) {
                 ReminderSettingsView()
+            }
+            .sheet(isPresented: $showVoiceRecording) {
+                VoiceRecordingView()
             }
         }
     }

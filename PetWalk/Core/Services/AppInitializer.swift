@@ -76,6 +76,10 @@ class AppInitializer: ObservableObject {
         userDataLoaded = true
         updateProgress(for: "userData")
         
+        // 尝试从云端同步数据（如果 Game Center 已登录）
+        updateStatus("正在同步云端数据...")
+        await CloudSyncManager.shared.sync()
+        
         // 模拟最小加载时间，让用户能看到状态变化
         try? await Task.sleep(nanoseconds: 100_000_000) // 0.1秒
     }

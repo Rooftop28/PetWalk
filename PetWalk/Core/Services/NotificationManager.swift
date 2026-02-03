@@ -116,7 +116,14 @@ class NotificationManager: NSObject, ObservableObject {
                 // 实际上 `dailyReminderMessages` 现在访问 DataManager，而 DataManager 是 @MainActor
                 // 所以我们需要在这一行之前（在 MainActor 上）就获取好 messages
                 content.body = messages.randomElement() ?? "该遛狗啦！"
-                content.sound = .default
+                // 使用自定义狗叫声作为铃声（如果有录制）
+                content.sound = await MainActor.run {
+                    if VoiceRecordingManager.shared.hasRecordedVoice {
+                        return UNNotificationSound(named: UNNotificationSoundName(VoiceRecordingManager.shared.notificationSoundName))
+                    } else {
+                        return .default
+                    }
+                }
                 content.badge = 1
                 
                 let components = calendar.dateComponents([.hour, .minute], from: time)

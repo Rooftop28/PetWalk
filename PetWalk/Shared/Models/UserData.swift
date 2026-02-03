@@ -58,6 +58,9 @@ struct UserData: Codable {
     // MARK: - 宠物档案 (AI Persona)
     var petProfile: PetProfile = PetProfile()
     
+    // MARK: - 日记设置 (Diary Settings)
+    var aiDiaryEnabled: Bool = true      // 是否自动生成 AI 狗狗日记
+    
     // MARK: - DEPRECATED (保留以兼容旧数据)
     var inventory: [String: Int] = [:] // 旧物品清单，已弃用
     
@@ -107,7 +110,8 @@ struct UserData: Codable {
         totalLikesReceived: Int = 0,
         totalLiveWatchingDuration: TimeInterval = 0,
         inventory: [String: Int] = [:],
-        petProfile: PetProfile = PetProfile()
+        petProfile: PetProfile = PetProfile(),
+        aiDiaryEnabled: Bool = true
     ) {
         self.totalBones = totalBones
         self.lastWalkDate = lastWalkDate
@@ -136,6 +140,7 @@ struct UserData: Codable {
         self.totalLiveWatchingDuration = totalLiveWatchingDuration
         self.inventory = inventory
         self.petProfile = petProfile
+        self.aiDiaryEnabled = aiDiaryEnabled
     }
     
     // MARK: - 辅助方法
