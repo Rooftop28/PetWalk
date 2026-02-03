@@ -15,6 +15,8 @@
 - [2026/01/29 - 云遛狗 (Live Walk)](#-20260129)
 - [2026/01/30 - AI 档案建立](#-20260130)
 - [2026/01/30 (续) - AI 日记与足迹升级](#-20260130-续)
+- [2026/01/31 - 灵动岛与日历修复](#-20260131)
+- [2026/02/02 - 日历与灵动岛 Bug 修复](#-20260202)
 - [🚀 当前待办与路线图 (Roadmap)](#-road-map)
 
 ---
@@ -424,9 +426,48 @@ HistoryView 的升级让 App 完成了从“工具”到“情感记录本”的
 
 <br>
 
+<a id="-20260202"></a>
+# 📅 开发日志 (Dev Log) - 2026/02/02
+
+## 🎯 核心目标
+修复日历系统和灵动岛的显示问题。
+
+## ✅ 今日完成事项 (Completed)
+
+### 1. 📅 日历显示修复 (Calendar Grid Fix)
+- **问题**: 日历网格日期之间出现不正常的空格，几乎每个月都显示错乱。
+- **根因分析**: 
+  1. **Calendar 本地化不一致**: 代码使用 `Calendar.current`，但系统 locale 可能将周一设为一周起始日，与硬编码的表头 `["日", "一", "二", "三", "四", "五", "六"]` 不匹配。
+  2. **SwiftUI ForEach ID 冲突**: 空白格子 `ForEach(0..<offset)` 和日期格子 `ForEach(1...days)` 使用整数 ID，导致 ID 冲突 (如 1, 2, 3 同时出现在两个 ForEach 中)，SwiftUI 无法正确区分视图。
+- **解决方案**:
+  1. 创建 `fixedCalendar` 属性，强制使用格里历并设置 `firstWeekday = 1` (周日起始)。
+  2. 创建 `CalendarCell` 枚举 (`empty(index)` / `day(day)`)，使用唯一字符串 ID (`"empty_0"`, `"day_1"` 等)，合并为单个 `ForEach(calendarCells)` 渲染。
+- **涉及文件**: `HistoryView.swift` (PhotoGridView, HeatmapGridView, DiaryGridView)
+
+### 2. 🏝 灵动岛修复 (Live Activity Fix)
+- **问题**: 灵动岛只显示系统定位箭头，不显示自定义内容。
+- **根因分析**:
+  1. Widget Extension 缺少 `PetWalkAttributes` 模型定义 (最初尝试添加副本导致 "Multiple commands produce" 错误)。
+  2. 代码使用了 iOS 17+ 特性 (`symbolEffect`, `dog.fill` 符号) 可能导致低版本渲染失败。
+  3. `terminateAllActivities()` 改为 `async` 后，`PetWalkApp.swift` 中未使用 `await` 调用。
+- **解决方案**:
+  1. 确认 project 已通过 `membershipExceptions` 将主工程的 `PetWalkAttributes.swift` 加入 Widget Extension 编译源。
+  2. 简化灵动岛 UI，移除 `symbolEffect`，使用通用 SF Symbol (`pawprint.fill`, `timer`, `speedometer`)。
+  3. 在 `PetWalkApp.swift` 中用 `Task { await ... }` 包裹异步调用。
+- **涉及文件**: `PetWalkLiveActivity.swift`, `WalkSessionManager.swift`, `PetWalkApp.swift`
+
+## 📝 总结
+修复了两个影响用户体验的关键 Bug。日历现在可以正确显示任意月份，灵动岛能够实时展示遛狗数据。
+
+---
+*记录人: Cursor AI Assistant*
+*时间: 2026-02-02*
+
+<br>
+
 <a id="-road-map"></a>
-# � 当前待办与路线图 (Roadmap)
-*(Updated: 2026/01/31)*
+# 🚀 当前待办与路线图 (Roadmap)
+*(Updated: 2026/02/02)*
 
 ## 优先处理 (High Priority)
 - [ ] **同城排行榜**: 结合地理位置信息实现同城筛选。
