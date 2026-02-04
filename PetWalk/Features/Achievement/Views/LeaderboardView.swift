@@ -11,6 +11,7 @@ import SwiftUI
 struct LeaderboardView: View {
     @ObservedObject var gameCenter = GameCenterManager.shared
     @ObservedObject var leaderboardManager = SupabaseLeaderboardManager.shared
+    @ObservedObject var voicePlayer = RemoteVoicePlayer.shared
     @State private var selectedTab: SupabaseLeaderboardType = .global
     @State private var showRegionPicker = false
     
@@ -64,7 +65,24 @@ struct LeaderboardView: View {
                     }
                 }
             }
+            .onDisappear {
+                // 离开页面时停止播放
+                voicePlayer.stop()
+            }
+            .onChange(of: leaderboardManager.globalLeaderboard) { _, newValue in
+                // 预加载前 10 名的声音
+                preloadVoices(from: newValue)
+            }
         }
+    }
+    
+    // MARK: - 预加载声音
+    private func preloadVoices(from entries: [SupabaseLeaderboardEntry]) {
+        let voiceEntries = entries
+            .filter { $0.hasVoice }
+            .map { (userId: $0.userId, voiceUrl: $0.voiceUrl!) }
+        
+        voicePlayer.preloadVoices(voiceEntries, limit: 10)
     }
     
     // MARK: - 标签页选择器
@@ -359,14 +377,22 @@ struct SupabaseLeaderboardEntryRow: View {
     let entry: SupabaseLeaderboardEntry
     var showMedal: Bool = false
     var showRegion: Bool = false
+    @ObservedObject var voicePlayer = RemoteVoicePlayer.shared
     
     var body: some View {
         HStack(spacing: 12) {
             // 排名
             rankView
             
-            // 头像
-            avatarView
+            // 头像 + 声音按钮
+            ZStack(alignment: .bottomTrailing) {
+                avatarView
+                
+                // 声音按钮（如果有狗叫声）
+                if entry.hasVoice {
+                    voiceButton
+                }
+            }
             
             // 玩家信息
             VStack(alignment: .leading, spacing: 2) {
@@ -408,6 +434,35 @@ struct SupabaseLeaderboardEntryRow: View {
             RoundedRectangle(cornerRadius: 10)
                 .stroke(entry.isCurrentPlayer ? Color.appGreenMain : Color.gray.opacity(0.2), lineWidth: 1)
         )
+    }
+    
+    // MARK: - 声音按钮
+    private var voiceButton: some View {
+        let isPlaying = voicePlayer.currentPlayingUserId == entry.userId && voicePlayer.isPlaying
+        let isLoading = voicePlayer.currentPlayingUserId == entry.userId && voicePlayer.isLoading
+        
+        return Button {
+            if let voiceUrl = entry.voiceUrl {
+                voicePlayer.play(userId: entry.userId, voiceUrl: voiceUrl)
+            }
+        } label: {
+            ZStack {
+                Circle()
+                    .fill(isPlaying ? Color.appGreenMain : Color.orange)
+                    .frame(width: 18, height: 18)
+                
+                if isLoading {
+                    ProgressView()
+                        .scaleEffect(0.5)
+                        .tint(.white)
+                } else {
+                    Image(systemName: isPlaying ? "stop.fill" : "speaker.wave.2.fill")
+                        .font(.system(size: 8))
+                        .foregroundColor(.white)
+                }
+            }
+        }
+        .offset(x: 4, y: 4)
     }
     
     private var rankView: some View {

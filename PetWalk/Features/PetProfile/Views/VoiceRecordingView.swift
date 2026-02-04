@@ -12,9 +12,11 @@ import AVFoundation
 struct VoiceRecordingView: View {
     @ObservedObject var voiceManager = VoiceRecordingManager.shared
     @ObservedObject var dataManager = DataManager.shared
+    @ObservedObject var gameCenter = GameCenterManager.shared
     @Environment(\.dismiss) var dismiss
     
     @State private var showDeleteConfirmation = false
+    @State private var showCloudDeleteConfirmation = false
     @State private var pulseAnimation = false
     
     var petName: String {
@@ -66,10 +68,32 @@ struct VoiceRecordingView: View {
             .alert("删除录音", isPresented: $showDeleteConfirmation) {
                 Button("取消", role: .cancel) {}
                 Button("删除", role: .destructive) {
-                    voiceManager.deleteRecording()
+                    Task {
+                        // 同时删除云端
+                        if voiceManager.isSyncedToCloud {
+                            _ = await voiceManager.deleteFromCloud()
+                        }
+                        voiceManager.deleteRecording()
+                    }
                 }
             } message: {
-                Text("确定要删除已录制的叫声吗？")
+                Text("确定要删除已录制的叫声吗？\(voiceManager.isSyncedToCloud ? "云端的声音也会被删除。" : "")")
+            }
+            .alert("取消分享", isPresented: $showCloudDeleteConfirmation) {
+                Button("取消", role: .cancel) {}
+                Button("确定", role: .destructive) {
+                    Task {
+                        _ = await voiceManager.deleteFromCloud()
+                    }
+                }
+            } message: {
+                Text("取消分享后，其他用户将无法在排行榜听到你的狗叫声。本地录音不会被删除。")
+            }
+            .onAppear {
+                // 检查云端同步状态
+                Task {
+                    await voiceManager.checkCloudSyncStatus()
+                }
             }
         }
     }
@@ -181,6 +205,7 @@ struct VoiceRecordingView: View {
     
     private var recordedPreviewSection: some View {
         VStack(spacing: 15) {
+            // 标题行
             HStack {
                 Image(systemName: "checkmark.circle.fill")
                     .foregroundColor(.green)
@@ -188,8 +213,12 @@ struct VoiceRecordingView: View {
                     .font(.headline)
                     .foregroundColor(.appBrown)
                 Spacer()
+                
+                // 云同步状态
+                cloudSyncBadge
             }
             
+            // 操作按钮
             HStack(spacing: 20) {
                 // 播放按钮
                 Button {
@@ -245,11 +274,138 @@ struct VoiceRecordingView: View {
                         .cornerRadius(12)
                 }
             }
+            
+            Divider()
+                .padding(.vertical, 8)
+            
+            // 云同步按钮
+            cloudSyncSection
         }
         .padding()
         .background(Color.white)
         .cornerRadius(15)
         .shadow(color: .black.opacity(0.05), radius: 5)
+    }
+    
+    // MARK: - 云同步状态徽章
+    
+    private var cloudSyncBadge: some View {
+        Group {
+            if voiceManager.isSyncedToCloud {
+                HStack(spacing: 4) {
+                    Image(systemName: "checkmark.icloud.fill")
+                        .font(.caption)
+                    Text("已同步")
+                        .font(.caption2)
+                }
+                .foregroundColor(.blue)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Color.blue.opacity(0.1))
+                .cornerRadius(8)
+            } else {
+                HStack(spacing: 4) {
+                    Image(systemName: "icloud.slash")
+                        .font(.caption)
+                    Text("未同步")
+                        .font(.caption2)
+                }
+                .foregroundColor(.gray)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Color.gray.opacity(0.1))
+                .cornerRadius(8)
+            }
+        }
+    }
+    
+    // MARK: - 云同步区域
+    
+    private var cloudSyncSection: some View {
+        VStack(spacing: 12) {
+            // 说明文字
+            HStack {
+                Image(systemName: "icloud.and.arrow.up")
+                    .foregroundColor(.blue)
+                Text("分享到排行榜")
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                Spacer()
+            }
+            
+            Text("上传后，排行榜上的其他用户可以听到你家狗狗的叫声")
+                .font(.caption)
+                .foregroundColor(.gray)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            
+            // 操作按钮
+            if !gameCenter.isAuthenticated {
+                // 未登录 Game Center
+                HStack {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundColor(.orange)
+                    Text("请先登录 Game Center")
+                        .font(.caption)
+                        .foregroundColor(.orange)
+                }
+            } else if voiceManager.isUploading {
+                // 上传中
+                HStack {
+                    ProgressView()
+                        .scaleEffect(0.8)
+                    Text("上传中...")
+                        .font(.subheadline)
+                        .foregroundColor(.gray)
+                }
+            } else if voiceManager.isSyncedToCloud {
+                // 已同步，显示取消分享按钮
+                HStack(spacing: 12) {
+                    // 云端 URL 预览
+                    if let url = voiceManager.cloudVoiceUrl {
+                        Text(URL(string: url)?.lastPathComponent ?? "voice.m4a")
+                            .font(.caption)
+                            .foregroundColor(.gray)
+                            .lineLimit(1)
+                    }
+                    
+                    Spacer()
+                    
+                    Button {
+                        showCloudDeleteConfirmation = true
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "icloud.slash")
+                            Text("取消分享")
+                        }
+                        .font(.caption)
+                        .foregroundColor(.red)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(Color.red.opacity(0.1))
+                        .cornerRadius(8)
+                    }
+                }
+            } else {
+                // 未同步，显示上传按钮
+                Button {
+                    Task {
+                        _ = await voiceManager.uploadToCloud()
+                    }
+                } label: {
+                    HStack {
+                        Image(systemName: "icloud.and.arrow.up.fill")
+                        Text("上传到云端")
+                    }
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .background(Color.blue)
+                    .cornerRadius(10)
+                }
+            }
+        }
     }
     
     // MARK: - 使用说明

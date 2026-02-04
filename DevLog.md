@@ -427,10 +427,10 @@ HistoryView 的升级让 App 完成了从“工具”到“情感记录本”的
 <br>
 
 <a id="-20260202"></a>
-# 📅 开发日志 (Dev Log) - 2026/02/02
+# 📅 开发日志 (Dev Log) - 2026/02/02 ~ 02/04
 
 ## 🎯 核心目标
-修复日历系统和灵动岛的显示问题。
+修复日历系统和灵动岛的显示问题，实现用户身份架构升级和跨平台账号恢复。
 
 ## ✅ 今日完成事项 (Completed)
 
@@ -518,32 +518,69 @@ HistoryView 的升级让 App 完成了从“工具”到“情感记录本”的
   3. **保存时** (`saveRecord`)：`updateStats: true`，正式更新统计。
 - **涉及文件**: `AchievementManager.swift`, `WalkSummaryView.swift`
 
-### 8. 🎤 狗叫声录制 (Voice ID - Phase 1)
-- **功能**: 录制狗狗叫声作为专属提示音。
-- **实现**:
+### 8. 🎤 狗叫声录制 (Voice ID - Phase 1 & 2)
+- **Phase 1 功能**: 录制狗狗叫声作为专属提示音。
+- **Phase 1 实现**:
   1. **VoiceRecordingManager**: 录音服务，使用 `AVAudioRecorder` 录制 m4a，最长 2 秒，自动转换 caf 格式。
   2. **VoiceRecordingView**: 录音 UI，圆形按钮 + 进度环 + 脉冲动画，支持试听/重录/删除。
-  3. **集成**:
-     - 设置页面：档案管理新增"录制叫声"入口。
-     - 遛狗结算：进入时播放狗叫声。
-     - 每日提醒：通知使用自定义铃声。
-  4. `Info.plist` 添加 `NSMicrophoneUsageDescription`。
+  3. **集成**: 设置页面入口、遛狗结算播放、通知铃声。
+- **Phase 2 功能**: 上传狗叫声到云端，排行榜播放其他用户的狗叫声。
+- **Phase 2 实现**:
+  1. **Supabase Storage**: 创建 `pet-voices` bucket 存储音频文件。
+  2. **VoiceRecordingManager 扩展**: `uploadToCloud()`, `downloadFromCloud()`, `deleteFromCloud()` 方法。
+  3. **RemoteVoicePlayer**: 新服务，播放远程音频 + 本地缓存 + 预加载。
+  4. **LeaderboardView**: 排行榜用户头像旁显示声音按钮，可播放其狗叫声。
+  5. **数据库**: `pets` 表新增 `voice_url` 字段，视图 JOIN 返回声音 URL。
 - **涉及文件**:
-  - 新增: `VoiceRecordingManager.swift`, `VoiceRecordingView.swift`
-  - 修改: `ReminderSettingsView.swift`, `NotificationManager.swift`, `WalkSummaryView.swift`, `Info.plist`
+  - 新增: `VoiceRecordingManager.swift`, `VoiceRecordingView.swift`, `RemoteVoicePlayer.swift`
+  - 修改: `LeaderboardView.swift`, `supabase_schema.sql`
+
+### 9. 🔐 用户身份架构升级 (Auth Architecture v3.0)
+- **背景**: 原使用 Game Center ID 作为主键，但该 ID 在卸载重装后可能变化，导致数据丢失。
+- **新架构**: 
+  - 使用 **Supabase UUID** 作为主键 (`user_id`)
+  - **Game Center ID** 降级为普通字段 (`profiles.game_center_id`)，用于社交功能和账号恢复
+- **实现**:
+  1. **AuthService**: 新服务，统一管理用户认证：
+     - Supabase 匿名登录获取稳定 UUID
+     - 关联 Game Center ID 到 profiles 表
+     - 多方案账号恢复逻辑（Session > Keychain > Game Center ID > 新建）
+  2. **KeychainManager**: 新服务，将 UUID 存储到 Keychain（卸载后仍保留）
+  3. **数据库升级**: `profiles` 表新增 `game_center_id` 字段 + 索引
+- **涉及文件**:
+  - 新增: `AuthService.swift`, `KeychainManager.swift`
+  - 修改: `CloudSyncManager.swift`, `SupabaseLeaderboardManager.swift`, `VoiceRecordingManager.swift`, `AppInitializer.swift`
+
+### 10. 📱 跨设备账号恢复 (Cross-Device Recovery)
+- **功能**: 支持用户在新设备（包括安卓）上通过输入 UUID 恢复账号数据。
+- **恢复优先级**:
+  1. **Supabase Session**: 现有登录状态
+  2. **Keychain UUID**: 卸载重装后从 Keychain 恢复
+  3. **Game Center ID**: 通过 GC ID 查找已有账号（同一 Apple ID 跨设备）
+  4. **手动输入 UUID**: 用户复制 UUID 到新设备恢复（支持跨平台）
+- **UI 实现**:
+  1. **设置页面**: 新增「账号」Section，显示用户 ID（可复制）和恢复入口
+  2. **RestoreAccountSheet**: 恢复账号界面，支持粘贴 UUID、格式验证、二次确认
+- **涉及文件**:
+  - 修改: `ReminderSettingsView.swift (SettingsView)`, `AuthService.swift`
 
 ## 📝 总结
-今日是高产的一天！修复了 5 个 Bug（日历、灵动岛、Game Center 登录、成就重复解锁、排行榜数据源），实现了 4 个新功能（成就云同步、Supabase 排行榜、主人日志、狗叫声录制）。App 的云端能力和个性化体验都得到了显著提升。
+02/02~02/04 是高产的三天！修复了 5 个 Bug（日历、灵动岛、Game Center 登录、成就重复解锁、排行榜数据源），实现了多个重要功能：
+- **云同步**: 成就云同步、Supabase 自建排行榜
+- **个性化**: 主人日志、狗叫声录制与云分享
+- **架构升级**: Supabase UUID 作为主键，Keychain 持久化，跨设备账号恢复
+
+App 的云端能力、数据安全性和跨平台兼容性都得到了显著提升。
 
 ---
 *记录人: Cursor AI Assistant*
-*时间: 2026-02-02*
+*时间: 2026-02-02 ~ 2026-02-04*
 
 <br>
 
 <a id="-road-map"></a>
 # 🚀 当前待办与路线图 (Roadmap)
-*(Updated: 2026/02/02)*
+*(Updated: 2026/02/04)*
 
 ## 优先处理 (High Priority)
 - [x] ~~**同城排行榜**~~: ✅ 已完成 (2026/02/02) - 基于 Supabase `profiles.region` 字段实现。
@@ -560,6 +597,12 @@ HistoryView 的升级让 App 完成了从“工具”到“情感记录本”的
 - [ ] **Watch 端联动**: 实现 Watch 端独立计步和双向控制 (目前仅作为显示端)。
 
 ## 近期完成 (Recently Completed)
+- [x] ~~**用户身份架构升级 (v3.0)**~~: ✅ 已完成 (2026/02/04)
+    - Supabase UUID 作为主键，解耦 Game Center ID
+    - Keychain 持久化 UUID，卸载重装不丢失
+    - 多方案账号恢复（Session > Keychain > GC ID > 手动输入）
+- [x] ~~**跨设备账号恢复**~~: ✅ 已完成 (2026/02/04) - 设置页面支持复制 UUID 和手动恢复，支持跨平台（iOS/Android）。
+- [x] ~~**狗叫声云分享 (Phase 2)**~~: ✅ 已完成 (2026/02/02) - 上传到 Supabase Storage，排行榜可播放他人狗叫声。
 - [x] ~~**主人手写日志 + AI 日记可选**~~: ✅ 已完成 (2026/02/02) - 遛狗结束后可选择手写日志或 AI 生成狗狗日记。
 
 ## 未来展望 (Future)
@@ -568,16 +611,17 @@ HistoryView 的升级让 App 完成了从“工具”到“情感记录本”的
 - [ ] **好友排行榜**: 接入 Game Center 好友列表或自建好友系统。
 - [ ] 宣传口号“遛狗可视化”“隐形付出”“不要闲置Apple watch”
 - [ ] 音乐
-- [x] ~~上传狗叫声，独一无二的提示音~~: ✅ Phase 1 已完成 (2026/02/02) - 本地录制、播放、通知铃声。         
-- [ ]Phase 2（未来）：上传到 Supabase Storage，排行榜声音名片，云遛狗打招呼
+- [x] ~~上传狗叫声，独一无二的提示音~~: ✅ Phase 1 + Phase 2 已完成 (2026/02/02)
+    - Phase 1: 本地录制、播放、通知铃声
+    - Phase 2: 上传到 Supabase Storage，排行榜声音名片
 
 - [ ] 参考Apple watch运动里的图标，制作一个遛狗的图标
-- [ ] 完成遛狗后主人也可以选择写日志，“狗狗日记”的生成设置为可选是否生成，并在设置中添加
+- [x] 完成遛狗后主人也可以选择写日志，“狗狗日记”的生成设置为可选是否生成，并在设置中添加
 - [ ] 夜间模式 -- 感觉删掉比较好，不变化，简单一些
 - [ ] 丰富首页宠物的语言、表情
 - [ ] 字体
 - [ ] 遛狗页面是否需要适配天气
 
 
-## bug
-- [ ] 在排行榜中，测试数据的beijing和我定位的“北京”不在同一个排行榜
+## Bug
+- [x] ~~在排行榜中，测试数据的beijing和我定位的"北京"不在同一个排行榜~~: ✅ 已修复 - 统一使用中文城市名

@@ -254,7 +254,7 @@ class GameCenterManager: NSObject, ObservableObject {
                     score: entry.score,
                     isCurrentPlayer: entry.player == GKLocalPlayer.local,
                     avatarImage: avatarImage,
-                    gameCenterID: entry.player.gamePlayerID
+                    gameCenterID: entry.player.teamPlayerID
                 )
                 leaderboardEntries.append(leaderboardEntry)
             }

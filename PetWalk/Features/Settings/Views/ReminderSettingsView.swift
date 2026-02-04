@@ -338,13 +338,16 @@ struct ReminderSettingsView: View {
 struct SettingsView: View {
     @ObservedObject var dataManager = DataManager.shared
     @ObservedObject var voiceManager = VoiceRecordingManager.shared
+    @ObservedObject var authService = AuthService.shared
     @Environment(\.dismiss) var dismiss
     
     @State private var showReminderSettings = false
-    @State private var showEditProfile = false // This might be missing definition of EditProfileView elsewhere, but keeping for now as placeholder
+    @State private var showEditProfile = false
     @State private var showPetProfileSetup = false
     @State private var showVoiceRecording = false
     @State private var showAbout = false
+    @State private var showCopiedToast = false
+    @State private var showRestoreSheet = false
     
     var body: some View {
         NavigationView {
@@ -352,6 +355,72 @@ struct SettingsView: View {
                 Color.appBackground.ignoresSafeArea()
                 
                 List {
+                    // 账号信息
+                    Section {
+                        // 用户 ID
+                        HStack {
+                            Image(systemName: "person.badge.key.fill")
+                                .font(.system(size: 18))
+                                .foregroundColor(.blue)
+                                .frame(width: 30, height: 30)
+                                .background(Color.blue.opacity(0.15))
+                                .clipShape(RoundedRectangle(cornerRadius: 6))
+                            
+                            Text("用户 ID")
+                            
+                            Spacer()
+                            
+                            if let userId = authService.currentUserId {
+                                Text(userId.prefix(8) + "...")
+                                    .font(.system(.caption, design: .monospaced))
+                                    .foregroundColor(.gray)
+                                
+                                Button {
+                                    UIPasteboard.general.string = userId
+                                    showCopiedToast = true
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                                        showCopiedToast = false
+                                    }
+                                } label: {
+                                    Image(systemName: "doc.on.doc")
+                                        .font(.caption)
+                                        .foregroundColor(.appGreenMain)
+                                }
+                            } else {
+                                Text("未登录")
+                                    .font(.caption)
+                                    .foregroundColor(.red)
+                            }
+                        }
+                        
+                        // 恢复账号
+                        Button {
+                            showRestoreSheet = true
+                        } label: {
+                            HStack {
+                                Image(systemName: "arrow.down.circle.fill")
+                                    .font(.system(size: 18))
+                                    .foregroundColor(.green)
+                                    .frame(width: 30, height: 30)
+                                    .background(Color.green.opacity(0.15))
+                                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                                
+                                Text("从其他设备恢复账号")
+                                    .foregroundColor(.primary)
+                                
+                                Spacer()
+                                
+                                Image(systemName: "chevron.right")
+                                    .font(.caption)
+                                    .foregroundColor(.gray.opacity(0.5))
+                            }
+                        }
+                    } header: {
+                        Text("账号")
+                    } footer: {
+                        Text("用户 ID 用于数据同步。跨设备（包括安卓）恢复数据时，请复制 ID 并在新设备上输入。")
+                    }
+                    
                     // 通知设置
                     Section {
                         Button {
@@ -502,9 +571,197 @@ struct SettingsView: View {
             .sheet(isPresented: $showReminderSettings) {
                 ReminderSettingsView()
             }
+            .sheet(isPresented: $showEditProfile) {
+                EditProfileView()
+            }
             .sheet(isPresented: $showVoiceRecording) {
                 VoiceRecordingView()
             }
+            .sheet(isPresented: $showRestoreSheet) {
+                RestoreAccountSheet()
+            }
+            .overlay {
+                if showCopiedToast {
+                    VStack {
+                        Spacer()
+                        Text("已复制到剪贴板")
+                            .font(.caption)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 8)
+                            .background(Color.black.opacity(0.7))
+                            .foregroundColor(.white)
+                            .cornerRadius(20)
+                            .padding(.bottom, 50)
+                    }
+                    .transition(.opacity)
+                    .animation(.easeInOut, value: showCopiedToast)
+                }
+            }
+        }
+    }
+}
+
+// MARK: - 恢复账号 Sheet
+struct RestoreAccountSheet: View {
+    @ObservedObject var authService = AuthService.shared
+    @Environment(\.dismiss) var dismiss
+    
+    @State private var inputUUID: String = ""
+    @State private var isRestoring = false
+    @State private var restoreError: String?
+    @State private var showRestoreConfirm = false
+    @State private var showRestoreSuccess = false
+    
+    var body: some View {
+        NavigationView {
+            VStack(spacing: 24) {
+                // 说明
+                VStack(alignment: .leading, spacing: 12) {
+                    Label("跨设备恢复", systemImage: "iphone.and.arrow.forward")
+                        .font(.headline)
+                    
+                    Text("如果你在其他设备（iOS/Android）上已有账号，可以输入该设备的用户 ID 来恢复数据。")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                    
+                    Text("⚠️ 恢复后，当前设备的数据将被覆盖。")
+                        .font(.caption)
+                        .foregroundColor(.orange)
+                }
+                .padding()
+                .background(Color(.systemGray6))
+                .cornerRadius(12)
+                
+                // 输入框
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("用户 ID")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    
+                    TextField("输入完整的用户 ID", text: $inputUUID)
+                        .font(.system(.body, design: .monospaced))
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .padding()
+                        .background(Color(.systemGray6))
+                        .cornerRadius(8)
+                    
+                    // 粘贴按钮
+                    Button {
+                        if let clipboardString = UIPasteboard.general.string {
+                            inputUUID = clipboardString.trimmingCharacters(in: .whitespacesAndNewlines)
+                        }
+                    } label: {
+                        Label("从剪贴板粘贴", systemImage: "doc.on.clipboard")
+                            .font(.caption)
+                    }
+                }
+                
+                // 错误提示
+                if let error = restoreError {
+                    Text(error)
+                        .font(.caption)
+                        .foregroundColor(.red)
+                        .padding(.horizontal)
+                }
+                
+                Spacer()
+                
+                // 恢复按钮
+                Button {
+                    showRestoreConfirm = true
+                } label: {
+                    HStack {
+                        if isRestoring {
+                            ProgressView()
+                                .tint(.white)
+                        } else {
+                            Image(systemName: "arrow.down.circle.fill")
+                        }
+                        Text(isRestoring ? "恢复中..." : "恢复账号")
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(isValidUUID ? Color.appGreenMain : Color.gray)
+                    .foregroundColor(.white)
+                    .cornerRadius(12)
+                }
+                .disabled(!isValidUUID || isRestoring)
+            }
+            .padding()
+            .navigationTitle("恢复账号")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("取消") {
+                        dismiss()
+                    }
+                }
+            }
+            .alert("确认恢复", isPresented: $showRestoreConfirm) {
+                Button("恢复", role: .destructive) {
+                    Task {
+                        await performRestore()
+                    }
+                }
+                Button("取消", role: .cancel) {}
+            } message: {
+                Text("恢复后，当前设备的本地数据将被覆盖。确定要继续吗？")
+            }
+            .alert("恢复成功", isPresented: $showRestoreSuccess) {
+                Button("好的") {
+                    dismiss()
+                }
+            } message: {
+                Text("账号数据已恢复，请重启 App 以加载完整数据。")
+            }
+        }
+    }
+    
+    // MARK: - UUID 验证
+    private var isValidUUID: Bool {
+        let trimmed = inputUUID.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.count == 36 {
+            return UUID(uuidString: trimmed) != nil
+        } else if trimmed.count == 32 {
+            let formatted = formatUUID(trimmed)
+            return UUID(uuidString: formatted) != nil
+        }
+        return false
+    }
+    
+    private func formatUUID(_ input: String) -> String {
+        var result = input.uppercased()
+        result.insert("-", at: result.index(result.startIndex, offsetBy: 8))
+        result.insert("-", at: result.index(result.startIndex, offsetBy: 13))
+        result.insert("-", at: result.index(result.startIndex, offsetBy: 18))
+        result.insert("-", at: result.index(result.startIndex, offsetBy: 23))
+        return result
+    }
+    
+    // MARK: - 执行恢复
+    private func performRestore() async {
+        isRestoring = true
+        restoreError = nil
+        
+        let trimmed = inputUUID.trimmingCharacters(in: .whitespacesAndNewlines)
+        var uuidString = trimmed
+        
+        if trimmed.count == 32 {
+            uuidString = formatUUID(trimmed)
+        }
+        
+        do {
+            try await authService.restoreAccount(withUUID: uuidString)
+            await CloudSyncManager.shared.sync()
+            
+            isRestoring = false
+            showRestoreSuccess = true
+            inputUUID = ""
+            
+        } catch {
+            isRestoring = false
+            restoreError = error.localizedDescription
         }
     }
 }

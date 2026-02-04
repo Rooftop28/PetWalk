@@ -7,13 +7,19 @@
 
 import Foundation
 import AVFoundation
+import Supabase
 
 /// 狗叫声录音管理器
 /// 负责录制、存储、播放自定义狗叫声
+/// Phase 2: 支持上传到 Supabase Storage
 @MainActor
 class VoiceRecordingManager: NSObject, ObservableObject {
     // MARK: - 单例
     static let shared = VoiceRecordingManager()
+    
+    // MARK: - Supabase 客户端
+    private let supabase: SupabaseClient
+    private let storageBucket = "pet-voices"
     
     // MARK: - 发布的属性
     @Published var isRecording: Bool = false
@@ -22,6 +28,12 @@ class VoiceRecordingManager: NSObject, ObservableObject {
     @Published var hasRecordedVoice: Bool = false
     @Published var permissionGranted: Bool = false
     @Published var errorMessage: String?
+    
+    // Phase 2: 云同步状态
+    @Published var isUploading: Bool = false
+    @Published var isDownloading: Bool = false
+    @Published var cloudVoiceUrl: String?  // 云端 URL
+    @Published var isSyncedToCloud: Bool = false  // 是否已同步到云端
     
     // MARK: - 私有属性
     private var audioRecorder: AVAudioRecorder?
@@ -61,8 +73,22 @@ class VoiceRecordingManager: NSObject, ObservableObject {
     // MARK: - 初始化
     
     private override init() {
+        self.supabase = SupabaseClient(
+            supabaseURL: SupabaseConfig.projectURL,
+            supabaseKey: SupabaseConfig.apiKey
+        )
         super.init()
         checkExistingRecording()
+        
+        // 检查云端同步状态
+        Task {
+            await checkCloudSyncStatus()
+        }
+    }
+    
+    // MARK: - 用户 ID
+    private var currentUserId: String? {
+        AuthService.shared.currentUserId
     }
     
     // MARK: - 权限检查
@@ -347,6 +373,295 @@ class VoiceRecordingManager: NSObject, ObservableObject {
         } else {
             return "pet_bark.m4a"
         }
+    }
+    
+    // MARK: - Phase 2: 云端同步功能
+    
+    /// 上传录音到 Supabase Storage
+    func uploadToCloud() async -> Bool {
+        print("VoiceRecording: ========== 开始上传 ==========")
+        
+        guard hasRecordedVoice else {
+            errorMessage = "没有可上传的录音"
+            print("VoiceRecording: 错误 - 没有录音")
+            return false
+        }
+        
+        guard let userId = currentUserId else {
+            errorMessage = "请先登录"
+            print("VoiceRecording: 错误 - 未登录 Game Center")
+            return false
+        }
+        print("VoiceRecording: userId = \(userId)")
+        
+        guard FileManager.default.fileExists(atPath: voiceFileURL.path) else {
+            errorMessage = "录音文件不存在"
+            print("VoiceRecording: 错误 - 文件不存在: \(voiceFileURL.path)")
+            return false
+        }
+        
+        isUploading = true
+        errorMessage = nil
+        
+        do {
+            // 读取文件数据
+            let fileData = try Data(contentsOf: voiceFileURL)
+            print("VoiceRecording: 文件大小 = \(fileData.count) bytes")
+            
+            // 文件路径: {userId}/voice.m4a
+            let filePath = "\(userId)/voice.m4a"
+            print("VoiceRecording: 上传路径 = \(filePath)")
+            print("VoiceRecording: Storage bucket = \(storageBucket)")
+            
+            // 先尝试删除旧文件（如果存在）
+            print("VoiceRecording: 尝试删除旧文件...")
+            do {
+                try await supabase.storage
+                    .from(storageBucket)
+                    .remove(paths: [filePath])
+                print("VoiceRecording: 旧文件已删除")
+            } catch {
+                // 删除失败不影响上传（可能文件本来就不存在）
+                print("VoiceRecording: 无旧文件或删除跳过")
+            }
+            
+            // 上传到 Supabase Storage
+            print("VoiceRecording: 正在上传到 Storage...")
+            let uploadResult = try await supabase.storage
+                .from(storageBucket)
+                .upload(
+                    filePath,
+                    data: fileData,
+                    options: FileOptions(
+                        contentType: "audio/mp4",
+                        upsert: true  // 覆盖已存在的文件
+                    )
+                )
+            print("VoiceRecording: Storage 上传成功, result = \(uploadResult)")
+            
+            // 获取公开 URL
+            let publicUrl = try supabase.storage
+                .from(storageBucket)
+                .getPublicURL(path: filePath)
+            print("VoiceRecording: 公开 URL = \(publicUrl)")
+            
+            cloudVoiceUrl = publicUrl.absoluteString
+            
+            // 更新 pets 表的 voice_url 字段
+            await updatePetVoiceUrl(publicUrl.absoluteString)
+            
+            isSyncedToCloud = true
+            isUploading = false
+            print("VoiceRecording: ========== 上传完成 ==========")
+            return true
+            
+        } catch {
+            isUploading = false
+            errorMessage = "上传失败: \(error.localizedDescription)"
+            print("VoiceRecording: ❌ 上传失败 - \(error)")
+            print("VoiceRecording: ❌ 详细错误 - \(String(describing: error))")
+            return false
+        }
+    }
+    
+    /// 更新 pets 表的 voice_url
+    private func updatePetVoiceUrl(_ url: String) async {
+        guard let userId = currentUserId else { return }
+        
+        do {
+            // 先检查 pets 表中是否有该用户的宠物记录
+            let existingPets: [PetIdData] = try await supabase
+                .from("pets")
+                .select("id")
+                .eq("user_id", value: userId)
+                .limit(1)
+                .execute()
+                .value
+            
+            if existingPets.isEmpty {
+                // 没有宠物记录，创建一条新记录
+                let petName = DataManager.shared.userData.petName
+                let newPet = NewPetWithVoice(userId: userId, name: petName, voiceUrl: url)
+                try await supabase
+                    .from("pets")
+                    .insert(newPet)
+                    .execute()
+                print("VoiceRecording: 创建 pet 并设置 voice_url 成功")
+            } else {
+                // 已有宠物记录，更新 voice_url
+                let updateData = VoiceUrlUpdate(voiceUrl: url)
+                try await supabase
+                    .from("pets")
+                    .update(updateData)
+                    .eq("user_id", value: userId)
+                    .execute()
+                print("VoiceRecording: 更新 pets.voice_url 成功")
+            }
+        } catch {
+            print("VoiceRecording: 更新 pets.voice_url 失败 - \(error)")
+        }
+    }
+    
+    /// 从云端下载录音（用于恢复或在新设备上同步）
+    func downloadFromCloud() async -> Bool {
+        guard let userId = currentUserId else {
+            errorMessage = "请先登录"
+            return false
+        }
+        
+        isDownloading = true
+        errorMessage = nil
+        
+        do {
+            // 先检查 pets 表是否有 voice_url
+            let pets: [PetVoiceData] = try await supabase
+                .from("pets")
+                .select("voice_url")
+                .eq("user_id", value: userId)
+                .limit(1)
+                .execute()
+                .value
+            
+            guard let voiceUrl = pets.first?.voiceUrl, !voiceUrl.isEmpty else {
+                isDownloading = false
+                print("VoiceRecording: 云端没有录音")
+                return false
+            }
+            
+            cloudVoiceUrl = voiceUrl
+            
+            // 下载文件
+            let filePath = "\(userId)/voice.m4a"
+            let data = try await supabase.storage
+                .from(storageBucket)
+                .download(path: filePath)
+            
+            // 保存到本地
+            try data.write(to: voiceFileURL)
+            
+            // 处理文件（生成 caf 格式用于通知）
+            processRecording()
+            
+            hasRecordedVoice = true
+            isSyncedToCloud = true
+            isDownloading = false
+            print("VoiceRecording: 下载成功")
+            return true
+            
+        } catch {
+            isDownloading = false
+            errorMessage = "下载失败: \(error.localizedDescription)"
+            print("VoiceRecording: 下载失败 - \(error)")
+            return false
+        }
+    }
+    
+    /// 从云端删除录音
+    func deleteFromCloud() async -> Bool {
+        guard let userId = currentUserId else {
+            errorMessage = "请先登录"
+            return false
+        }
+        
+        do {
+            // 删除 Storage 中的文件
+            let filePath = "\(userId)/voice.m4a"
+            try await supabase.storage
+                .from(storageBucket)
+                .remove(paths: [filePath])
+            
+            // 清空 pets 表的 voice_url (使用 update 而非 upsert)
+            let updateData = VoiceUrlUpdate(voiceUrl: nil)
+            try await supabase
+                .from("pets")
+                .update(updateData)
+                .eq("user_id", value: userId)
+                .execute()
+            
+            cloudVoiceUrl = nil
+            isSyncedToCloud = false
+            print("VoiceRecording: 云端删除成功")
+            return true
+            
+        } catch {
+            errorMessage = "删除失败: \(error.localizedDescription)"
+            print("VoiceRecording: 云端删除失败 - \(error)")
+            return false
+        }
+    }
+    
+    /// 检查云端同步状态
+    func checkCloudSyncStatus() async {
+        guard let userId = currentUserId else { return }
+        
+        do {
+            let pets: [PetVoiceData] = try await supabase
+                .from("pets")
+                .select("voice_url")
+                .eq("user_id", value: userId)
+                .limit(1)
+                .execute()
+                .value
+            
+            if let voiceUrl = pets.first?.voiceUrl, !voiceUrl.isEmpty {
+                cloudVoiceUrl = voiceUrl
+                isSyncedToCloud = hasRecordedVoice  // 如果本地有文件且云端有 URL，认为已同步
+            } else {
+                cloudVoiceUrl = nil
+                isSyncedToCloud = false
+            }
+        } catch {
+            print("VoiceRecording: 检查云端状态失败 - \(error)")
+        }
+    }
+    
+    /// 同步录音（上传本地 -> 云端，或下载云端 -> 本地）
+    func syncVoice() async {
+        guard currentUserId != nil else { return }
+        
+        if hasRecordedVoice && !isSyncedToCloud {
+            // 本地有录音但未同步 -> 上传
+            _ = await uploadToCloud()
+        } else if !hasRecordedVoice && cloudVoiceUrl != nil {
+            // 本地无录音但云端有 -> 下载
+            _ = await downloadFromCloud()
+        }
+    }
+}
+
+// MARK: - Supabase 辅助结构体
+
+private struct PetIdData: Decodable {
+    let id: String
+}
+
+private struct NewPetWithVoice: Encodable {
+    let userId: String
+    let name: String
+    let voiceUrl: String
+    let isPrimary: Bool = true
+    
+    enum CodingKeys: String, CodingKey {
+        case userId = "user_id"
+        case name
+        case voiceUrl = "voice_url"
+        case isPrimary = "is_primary"
+    }
+}
+
+private struct VoiceUrlUpdate: Encodable {
+    let voiceUrl: String?
+    
+    enum CodingKeys: String, CodingKey {
+        case voiceUrl = "voice_url"
+    }
+}
+
+private struct PetVoiceData: Decodable {
+    let voiceUrl: String?
+    
+    enum CodingKeys: String, CodingKey {
+        case voiceUrl = "voice_url"
     }
 }
 

@@ -22,6 +22,7 @@ struct EditProfileView: View {
     var body: some View {
         NavigationView {
             Form {
+                // MARK: - 余额
                 Section {
                     HStack {
                         Text("当前骨头币")

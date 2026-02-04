@@ -34,9 +34,10 @@ class AppInitializer: ObservableObject {
     
     // MARK: - 初始化任务权重（用于计算进度）
     private let taskWeights: [String: Double] = [
-        "userData": 0.4,
-        "theme": 0.3,
-        "health": 0.3
+        "auth": 0.3,
+        "userData": 0.3,
+        "theme": 0.2,
+        "health": 0.2
     ]
     
     private init() {}
@@ -51,6 +52,9 @@ class AppInitializer: ObservableObject {
         // 记录开始时间
         startTime = Date()
         
+        // 0. 认证服务 (Supabase 匿名登录 + Game Center 绑定)
+        await authenticateUser()
+        
         // 1. 加载用户数据
         await loadUserData()
         
@@ -62,6 +66,19 @@ class AppInitializer: ObservableObject {
         
         // 完成所有必要任务
         await completeInitialization()
+    }
+    
+    // MARK: - 任务 0: 用户认证
+    
+    private func authenticateUser() async {
+        updateStatus("正在登录...")
+        
+        // 执行 Supabase 匿名登录 + Game Center 绑定
+        await AuthService.shared.checkIn()
+        
+        updateProgress(for: "auth")
+        
+        try? await Task.sleep(nanoseconds: 100_000_000) // 0.1秒
     }
     
     // MARK: - 任务 1: 加载用户数据
@@ -76,9 +93,11 @@ class AppInitializer: ObservableObject {
         userDataLoaded = true
         updateProgress(for: "userData")
         
-        // 尝试从云端同步数据（如果 Game Center 已登录）
-        updateStatus("正在同步云端数据...")
-        await CloudSyncManager.shared.sync()
+        // 尝试从云端同步数据（如果已登录 Supabase）
+        if AuthService.shared.isAuthenticated {
+            updateStatus("正在同步云端数据...")
+            await CloudSyncManager.shared.sync()
+        }
         
         // 模拟最小加载时间，让用户能看到状态变化
         try? await Task.sleep(nanoseconds: 100_000_000) // 0.1秒

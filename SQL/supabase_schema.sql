@@ -1,6 +1,6 @@
 -- =====================================================
--- PetWalk 云同步 - Supabase 数据库完整结构 (修正版 v2.1)
--- 修复了 "Trigger already exists" 错误
+-- PetWalk 云同步 - Supabase 数据库完整结构 (修正版 v3.0)
+-- 重大变更: 使用 Supabase UUID 作为主键，Game Center ID 作为关联字段
 -- =====================================================
 
 -- 1. 表结构 (如果表存在，跳过创建)
@@ -26,6 +26,7 @@ CREATE INDEX IF NOT EXISTS idx_user_achievements_updated_at ON user_achievements
 
 CREATE TABLE IF NOT EXISTS profiles (
     user_id TEXT PRIMARY KEY REFERENCES user_achievements(user_id) ON DELETE CASCADE,
+    game_center_id TEXT UNIQUE,  -- Game Center teamPlayerID，用于社交功能
     nickname TEXT,
     avatar_url TEXT,
     bio TEXT,
@@ -36,6 +37,10 @@ CREATE TABLE IF NOT EXISTS profiles (
 );
 CREATE INDEX IF NOT EXISTS idx_profiles_region ON profiles(region);
 CREATE INDEX IF NOT EXISTS idx_profiles_distance ON profiles(total_distance DESC);
+CREATE INDEX IF NOT EXISTS idx_profiles_game_center_id ON profiles(game_center_id);
+
+-- 如果表已存在，添加 game_center_id 列
+-- ALTER TABLE profiles ADD COLUMN IF NOT EXISTS game_center_id TEXT UNIQUE;
 
 CREATE TABLE IF NOT EXISTS pets (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -45,11 +50,15 @@ CREATE TABLE IF NOT EXISTS pets (
     birth_date DATE,
     gender TEXT,
     avatar_url TEXT,
+    voice_url TEXT,  -- 狗叫声音频 URL (存储在 Supabase Storage pet-voices bucket)
     ai_persona JSONB DEFAULT '{}',
     is_primary BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_pets_user_id ON pets(user_id);
+
+-- 如果表已存在，添加 voice_url 列 (ALTER TABLE 在列已存在时会报错，但不影响使用)
+-- ALTER TABLE pets ADD COLUMN IF NOT EXISTS voice_url TEXT;
 
 CREATE TABLE IF NOT EXISTS walk_records (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -213,31 +222,38 @@ DROP POLICY IF EXISTS "Users can update own items" ON inventory_items;
 CREATE POLICY "Users can update own items" ON inventory_items FOR UPDATE USING (true);
 
 
--- 5. 视图 (CREATE OR REPLACE 会自动处理)
+-- 5. 视图 (注意：如果列结构变化，需要先 DROP 再 CREATE)
 -- =====================================================
 
-CREATE OR REPLACE VIEW leaderboard_distance AS
+DROP VIEW IF EXISTS leaderboard_distance;
+DROP VIEW IF EXISTS leaderboard_by_region;
+
+CREATE VIEW leaderboard_distance AS
 SELECT 
     p.user_id,
     p.nickname,
     p.avatar_url,
     p.region,
+    pet.voice_url,  -- 从 pets 表关联狗叫声 URL
     p.total_distance,
     p.total_walks,
     RANK() OVER (ORDER BY p.total_distance DESC) as global_rank
 FROM profiles p
+LEFT JOIN pets pet ON pet.user_id = p.user_id AND pet.is_primary = TRUE
 WHERE p.total_distance > 0
 ORDER BY p.total_distance DESC;
 
-CREATE OR REPLACE VIEW leaderboard_by_region AS
+CREATE VIEW leaderboard_by_region AS
 SELECT 
     p.user_id,
     p.nickname,
     p.avatar_url,
     p.region,
+    pet.voice_url,  -- 从 pets 表关联狗叫声 URL
     p.total_distance,
     p.total_walks,
     RANK() OVER (PARTITION BY p.region ORDER BY p.total_distance DESC) as regional_rank
 FROM profiles p
+LEFT JOIN pets pet ON pet.user_id = p.user_id AND pet.is_primary = TRUE
 WHERE p.total_distance > 0 AND p.region IS NOT NULL
 ORDER BY p.region, p.total_distance DESC;

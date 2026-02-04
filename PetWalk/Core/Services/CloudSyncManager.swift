@@ -15,7 +15,7 @@ import GameKit
 
 /// 云端用户数据结构（对应 Supabase 表结构）
 struct CloudUserData: Codable {
-    let userId: String                      // Game Center Player ID
+    let userId: String                      // Supabase UUID
     var unlockedAchievements: [String]      // 已解锁成就 ID 数组
     var revealedHints: [String]             // 已揭示线索的成就 ID 数组
     var totalBones: Int                     // 骨头币
@@ -96,14 +96,13 @@ class CloudSyncManager: ObservableObject {
     
     // MARK: - 获取用户 ID
     
-    /// 获取 Game Center Player ID 作为用户标识
+    /// 获取 Supabase UUID 作为用户标识
     private func getUserId() -> String? {
-        let localPlayer = GKLocalPlayer.local
-        guard localPlayer.isAuthenticated else {
-            print("⚠️ CloudSyncManager: Game Center 未认证，无法同步")
+        guard let userId = AuthService.shared.currentUserId else {
+            print("⚠️ CloudSyncManager: Supabase 未认证，无法同步")
             return nil
         }
-        return localPlayer.gamePlayerID
+        return userId
     }
     
     // MARK: - 公开方法
@@ -112,7 +111,7 @@ class CloudSyncManager: ObservableObject {
     func uploadToCloud() async {
         guard isEnabled, let client = client else { return }
         guard let userId = getUserId() else {
-            syncStatus = .failed("请先登录 Game Center")
+            syncStatus = .failed("请先登录")
             return
         }
         
@@ -162,7 +161,7 @@ class CloudSyncManager: ObservableObject {
     func downloadFromCloud() async {
         guard isEnabled, let client = client else { return }
         guard let userId = getUserId() else {
-            syncStatus = .failed("请先登录 Game Center")
+            syncStatus = .failed("请先登录")
             return
         }
         

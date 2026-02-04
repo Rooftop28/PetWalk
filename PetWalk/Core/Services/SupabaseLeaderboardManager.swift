@@ -10,12 +10,13 @@ import Supabase
 import GameKit
 
 // MARK: - 排行榜条目（Supabase 版）
-struct SupabaseLeaderboardEntry: Identifiable, Codable {
+struct SupabaseLeaderboardEntry: Identifiable, Codable, Equatable {
     let id: String
     let userId: String
     let nickname: String?
     let avatarUrl: String?
     let region: String?
+    let voiceUrl: String?  // Phase 2: 狗叫声 URL
     let totalDistance: Double
     let totalWalks: Int
     var rank: Int
@@ -27,6 +28,7 @@ struct SupabaseLeaderboardEntry: Identifiable, Codable {
         case nickname
         case avatarUrl = "avatar_url"
         case region
+        case voiceUrl = "voice_url"
         case totalDistance = "total_distance"
         case totalWalks = "total_walks"
         case rank = "global_rank"
@@ -38,18 +40,20 @@ struct SupabaseLeaderboardEntry: Identifiable, Codable {
         self.nickname = try container.decodeIfPresent(String.self, forKey: .nickname)
         self.avatarUrl = try container.decodeIfPresent(String.self, forKey: .avatarUrl)
         self.region = try container.decodeIfPresent(String.self, forKey: .region)
+        self.voiceUrl = try container.decodeIfPresent(String.self, forKey: .voiceUrl)
         self.totalDistance = try container.decodeIfPresent(Double.self, forKey: .totalDistance) ?? 0
         self.totalWalks = try container.decodeIfPresent(Int.self, forKey: .totalWalks) ?? 0
         self.rank = try container.decodeIfPresent(Int.self, forKey: .rank) ?? 0
         self.id = userId
     }
     
-    init(userId: String, nickname: String?, avatarUrl: String?, region: String?, totalDistance: Double, totalWalks: Int, rank: Int, isCurrentPlayer: Bool = false) {
+    init(userId: String, nickname: String?, avatarUrl: String?, region: String?, voiceUrl: String? = nil, totalDistance: Double, totalWalks: Int, rank: Int, isCurrentPlayer: Bool = false) {
         self.id = userId
         self.userId = userId
         self.nickname = nickname
         self.avatarUrl = avatarUrl
         self.region = region
+        self.voiceUrl = voiceUrl
         self.totalDistance = totalDistance
         self.totalWalks = totalWalks
         self.rank = rank
@@ -62,8 +66,14 @@ struct SupabaseLeaderboardEntry: Identifiable, Codable {
         try container.encodeIfPresent(nickname, forKey: .nickname)
         try container.encodeIfPresent(avatarUrl, forKey: .avatarUrl)
         try container.encodeIfPresent(region, forKey: .region)
+        try container.encodeIfPresent(voiceUrl, forKey: .voiceUrl)
         try container.encode(totalDistance, forKey: .totalDistance)
         try container.encode(totalWalks, forKey: .totalWalks)
+    }
+    
+    /// 是否有狗叫声
+    var hasVoice: Bool {
+        voiceUrl != nil && !voiceUrl!.isEmpty
     }
     
     // 显示名称
@@ -89,6 +99,7 @@ struct RegionLeaderboardEntry: Codable {
     let nickname: String?
     let avatarUrl: String?
     let region: String?
+    let voiceUrl: String?  // Phase 2: 狗叫声 URL
     let totalDistance: Double
     let totalWalks: Int
     let regionalRank: Int
@@ -98,6 +109,7 @@ struct RegionLeaderboardEntry: Codable {
         case nickname
         case avatarUrl = "avatar_url"
         case region
+        case voiceUrl = "voice_url"
         case totalDistance = "total_distance"
         case totalWalks = "total_walks"
         case regionalRank = "regional_rank"
@@ -158,7 +170,7 @@ class SupabaseLeaderboardManager: ObservableObject {
     
     // MARK: - 获取当前用户 ID
     private var currentUserId: String? {
-        GKLocalPlayer.local.isAuthenticated ? GKLocalPlayer.local.gamePlayerID : nil
+        AuthService.shared.currentUserId
     }
     
     // MARK: - 加载所有排行榜
@@ -205,33 +217,41 @@ class SupabaseLeaderboardManager: ObservableObject {
     }
     
     // MARK: - 加载同城排行榜
-    func loadCityLeaderboard() async {
-        // 首先获取当前用户的地区
-        guard let userId = currentUserId else {
-            print("SupabaseLeaderboard: 未登录，无法加载同城榜")
+    /// - Parameter specificRegion: 如果指定了城市，则加载该城市的排行榜；否则加载用户所在城市
+    func loadCityLeaderboard(for specificRegion: String? = nil) async {
+        let userId = currentUserId
+        
+        // 确定要查询的城市
+        var targetRegion: String? = specificRegion
+        
+        if targetRegion == nil, let userId = userId {
+            // 没有指定城市，尝试从数据库获取用户的城市
+            do {
+                let profile: [ProfileRegion] = try await supabase
+                    .from("profiles")
+                    .select("region")
+                    .eq("user_id", value: userId)
+                    .limit(1)
+                    .execute()
+                    .value
+                
+                targetRegion = profile.first?.region
+            } catch {
+                print("SupabaseLeaderboard: 获取用户地区失败 - \(error)")
+            }
+        }
+        
+        // 如果还是没有城市，加载所有地区的排行榜
+        guard let region = targetRegion, !region.isEmpty else {
+            print("SupabaseLeaderboard: 未指定地区，加载所有地区")
+            await loadAllRegionsLeaderboard()
             return
         }
         
+        currentUserRegion = region
+        
         do {
-            // 获取当前用户的 region
-            let profile: [ProfileRegion] = try await supabase
-                .from("profiles")
-                .select("region")
-                .eq("user_id", value: userId)
-                .limit(1)
-                .execute()
-                .value
-            
-            guard let region = profile.first?.region, !region.isEmpty else {
-                print("SupabaseLeaderboard: 用户未设置地区")
-                // 加载所有有地区的用户（按地区分组显示前几名）
-                await loadAllRegionsLeaderboard()
-                return
-            }
-            
-            currentUserRegion = region
-            
-            // 加载同城排行榜
+            // 加载指定城市的排行榜
             let entries: [RegionLeaderboardEntry] = try await supabase
                 .from("leaderboard_by_region")
                 .select()
@@ -249,11 +269,12 @@ class SupabaseLeaderboardManager: ObservableObject {
                     nickname: entry.nickname,
                     avatarUrl: entry.avatarUrl,
                     region: entry.region,
+                    voiceUrl: entry.voiceUrl,
                     totalDistance: entry.totalDistance,
                     totalWalks: entry.totalWalks,
                     rank: entry.regionalRank
                 )
-                if entry.userId == userId {
+                if let userId = userId, entry.userId == userId {
                     item.isCurrentPlayer = true
                     currentPlayerCityRank = entry.regionalRank
                 }
@@ -286,6 +307,7 @@ class SupabaseLeaderboardManager: ObservableObject {
                     nickname: entry.nickname,
                     avatarUrl: entry.avatarUrl,
                     region: entry.region,
+                    voiceUrl: entry.voiceUrl,
                     totalDistance: entry.totalDistance,
                     totalWalks: entry.totalWalks,
                     rank: rank
@@ -333,7 +355,7 @@ class SupabaseLeaderboardManager: ObservableObject {
                 .execute()
             
             // 更新 profiles
-            let displayName = GKLocalPlayer.local.displayName
+            let displayName = GKLocalPlayer.local.isAuthenticated ? GKLocalPlayer.local.displayName : "遛狗人"
             let profileData = ProfileUpsert(
                 userId: userId,
                 nickname: displayName,
@@ -355,33 +377,46 @@ class SupabaseLeaderboardManager: ObservableObject {
         }
     }
     
-    // MARK: - 更新用户地区
+    // MARK: - 切换查看的城市（仅浏览，不更新数据库）
+    func switchToRegion(_ region: String) async {
+        print("SupabaseLeaderboard: 切换城市 -> \(region)")
+        currentUserRegion = region
+        await loadCityLeaderboard(for: region)
+    }
+    
+    // MARK: - 更新用户所属地区（更新数据库 + 刷新排行榜）
     func updateUserRegion(_ region: String) async {
-        guard let userId = currentUserId else { return }
+        print("SupabaseLeaderboard: 更新用户地区 -> \(region)")
         
-        do {
-            let updateData = RegionUpdate(region: region)
-            try await supabase
-                .from("profiles")
-                .update(updateData)
-                .eq("user_id", value: userId)
-                .execute()
-            
-            currentUserRegion = region
-            print("SupabaseLeaderboard: 更新地区成功 - \(region)")
-            
-            // 刷新同城榜
-            await loadCityLeaderboard()
-        } catch {
-            print("SupabaseLeaderboard: 更新地区失败 - \(error)")
+        // 先设置当前城市（确保 UI 立即响应）
+        currentUserRegion = region
+        
+        // 尝试更新数据库
+        if let userId = currentUserId {
+            do {
+                let updateData = RegionUpdate(region: region)
+                try await supabase
+                    .from("profiles")
+                    .update(updateData)
+                    .eq("user_id", value: userId)
+                    .execute()
+                
+                print("SupabaseLeaderboard: 数据库更新成功")
+            } catch {
+                print("SupabaseLeaderboard: 数据库更新失败 - \(error)")
+                // 更新失败不影响浏览
+            }
         }
+        
+        // 加载该城市的排行榜（关键：直接传入 region 参数）
+        await loadCityLeaderboard(for: region)
     }
     
     // MARK: - 初始化用户 Profile
     func initializeUserProfile() async {
         guard let userId = currentUserId else { return }
         
-        let displayName = GKLocalPlayer.local.displayName
+        let displayName = GKLocalPlayer.local.isAuthenticated ? GKLocalPlayer.local.displayName : "遛狗人"
         let userData = DataManager.shared.userData
         
         do {
