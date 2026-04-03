@@ -158,158 +158,139 @@ struct HomeView: View {
     
     // MARK: - 待机模式视图 (原来的 UI)
     var idleModeView: some View {
-        VStack(spacing: 0) {
-            // Header
-            ZStack(alignment: .leading) {
-                // 1. 左侧标题 (位置绝对独立，确保与其他页面高度一致)
-                #if DEBUG
-                Menu {
-                    ForEach(PetMood.allCases, id: \.self) { mood in
-                        Button(mood.debugTitle) { updateMood(mood) }
-                    }
-                } label: {
-                    HStack(spacing: 4) {
-                        Text("PetWalk")
-                            .font(.system(size: 34, weight: .heavy, design: .rounded))
-                            .foregroundColor(.appBrown)
-                        Image(systemName: "ladybug.fill") // Debug icon
-                            .font(.system(size: 12))
-                            .foregroundColor(.red.opacity(0.6))
-                    }
-                }
-                #else
-                Text("PetWalk")
-                    .font(.system(size: 34, weight: .heavy, design: .rounded))
-                    .foregroundColor(.appBrown)
-                #endif
-                
-                // 2. 右侧骨头币按钮
-                HStack {
-                    Spacer()
-                    Button(action: { showShop = true }) {
-                        HStack(spacing: 5) {
-                            Text("🦴")
-                                .font(.title2)
-                            Text("\(dataManager.userData.totalBones)")
-                                .font(.system(size: 20, weight: .bold, design: .rounded))
-                                .foregroundColor(.appBrown)
-                                .contentTransition(.numericText(value: Double(dataManager.userData.totalBones)))
+        ScrollView {
+            VStack(spacing: 0) {
+                // Header
+                ZStack(alignment: .leading) {
+                    #if DEBUG
+                    Menu {
+                        ForEach(PetMood.allCases, id: \.self) { mood in
+                            Button(mood.debugTitle) { updateMood(mood) }
                         }
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 8)
-                        .background(Color.white.opacity(0.8))
-                        .clipShape(Capsule())
-                        .shadow(color: .black.opacity(0.05), radius: 5)
+                    } label: {
+                        HStack(spacing: 4) {
+                            Text("PetWalk")
+                                .font(.system(size: 34, weight: .heavy, design: .rounded))
+                                .foregroundColor(.appBrown)
+                            Image(systemName: "ladybug.fill")
+                                .font(.system(size: 12))
+                                .foregroundColor(.red.opacity(0.6))
+                        }
+                    }
+                    #else
+                    Text("PetWalk")
+                        .font(.system(size: 34, weight: .heavy, design: .rounded))
+                        .foregroundColor(.appBrown)
+                    #endif
+                    
+                    HStack {
+                        Spacer()
+                        Button(action: { showShop = true }) {
+                            HStack(spacing: 5) {
+                                Text("🦴")
+                                    .font(.title2)
+                                Text("\(dataManager.userData.totalBones)")
+                                    .font(.system(size: 20, weight: .bold, design: .rounded))
+                                    .foregroundColor(.appBrown)
+                                    .contentTransition(.numericText(value: Double(dataManager.userData.totalBones)))
+                            }
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 9)
+                            .glassButton()
+                        }
                     }
                 }
-            }
-            .padding(.top, 10) // 添加小的顶部间距，与其他页面保持一致
-            .padding(.horizontal, 20)
-            
-            Spacer()
-            
-            // 中间核心交互区
-            ZStack {
-                // 1. 背景光晕
-                BlobBackgroundView()
-                    .frame(height: 350)
-                    .offset(y: -20)
+                .padding(.top, 10)
+                .padding(.horizontal, 20)
                 
-                // 2. 狗狗贴纸 (中间层) - 向左偏移给用户头像留空间
-                PhotosPicker(selection: $selectedItem, matching: .images) {
-                    ZStack {
-                        if viewModel.isProcessing {
-                            ProgressView()
-                                .scaleEffect(2)
-                                .tint(.appBrown)
-                        } else {
-                            if let image = viewModel.currentPetImage {
-                                Image(uiImage: image)
-                                    .resizable()
-                                    .scaledToFit()
+                // 中间核心交互区
+                ZStack {
+                    BlobBackgroundView()
+                        .frame(height: 350)
+                        .offset(y: -20)
+                    
+                    PhotosPicker(selection: $selectedItem, matching: .images) {
+                        ZStack {
+                            if viewModel.isProcessing {
+                                ProgressView()
+                                    .scaleEffect(2)
+                                    .tint(.appBrown)
                             } else {
-                                // ⚠️ 确保 Assets 里有一张叫 "tongtong" 的图
-                                Image("tongtong")
-                                    .resizable()
-                                    .scaledToFit()
+                                if let image = viewModel.currentPetImage {
+                                    Image(uiImage: image)
+                                        .resizable()
+                                        .scaledToFit()
+                                } else {
+                                    Image("tongtong")
+                                        .resizable()
+                                        .scaledToFit()
+                                }
                             }
                         }
+                        .frame(height: 280)
+                        .shadow(color: .white, radius: 0, x: 2, y: 0)
+                        .shadow(color: .white, radius: 0, x: -2, y: 0)
+                        .shadow(color: .white, radius: 0, x: 0, y: 2)
+                        .shadow(color: .white, radius: 0, x: 0, y: -2)
+                        .shadow(color: .black.opacity(0.1), radius: 10, x: 0, y: 10)
+                        .rotationEffect(.degrees(currentMood.anim.rotationAngle))
+                        .scaleEffect(x: 1.0, y: currentMood.anim.scaleY)
+                        .offset(y: (isAnimating ? currentMood.anim.bounceHeight : 0) + currentMood.anim.offsetY)
+                        .animation(currentMood.anim.timing, value: isAnimating)
+                        .scaleEffect(isDogVisible ? 1.0 : 0.8)
+                        .opacity(isDogVisible ? 1.0 : 0)
                     }
-                    .frame(height: 280)
-                    .shadow(color: .white, radius: 0, x: 2, y: 0)
-                    .shadow(color: .white, radius: 0, x: -2, y: 0)
-                    .shadow(color: .white, radius: 0, x: 0, y: 2)
-                    .shadow(color: .white, radius: 0, x: 0, y: -2)
-                    .shadow(color: .black.opacity(0.1), radius: 10, x: 0, y: 10)
-                    // 状态动画：兴奋/开心时跳动，期待时歪头，郁闷时压扁
-                    .rotationEffect(.degrees(currentMood.anim.rotationAngle))
-                    .scaleEffect(x: 1.0, y: currentMood.anim.scaleY)
-                    .offset(y: (isAnimating ? currentMood.anim.bounceHeight : 0) + currentMood.anim.offsetY)
-                    .animation(currentMood.anim.timing, value: isAnimating)
-                    .scaleEffect(isDogVisible ? 1.0 : 0.8)
-                    .opacity(isDogVisible ? 1.0 : 0)
-                }
-                .offset(x: -30) // 向左偏移，给用户头像留空间
-                .onChange(of: selectedItem) { _, newItem in
-                    viewModel.selectAndProcessImage(from: newItem)
-                }
-                
-                // 2.5 状态贴纸 (Overlay) - 跟随宠物偏移
-                if let emoji = currentMood.overlay.emoji {
-                    let config = currentMood.overlay
-                    Text(emoji)
-                        .font(.system(size: 40))
-                        // 基础位置 + 动画位移
-                        .offset(x: config.offset.width - 30, // 跟随宠物偏移
-                                y: config.offset.height + (isAnimating ? config.offsetYTarget : 0))
-                        // 动画缩放
-                        .scaleEffect(isAnimating ? config.scaleTarget : 1.0)
-                        // 动画透明度 (叠加: isDogVisible控制显示, opacityTarget控制闪烁/渐隐)
-                        .opacity(isDogVisible ? (isAnimating ? config.opacityTarget : 1.0) : 0)
-                        .animation(config.animation, value: isAnimating)
-                        .id(currentMood) // 强制刷新
-                }
-                
-                // 2.6 用户头像 + 称号 - 右下角
-                PhotosPicker(selection: $selectedAvatarItem, matching: .images) {
-                    UserAvatarView(
-                        onTap: nil, // 禁用内部点击，交由 PhotosPicker 处理
-                        avatarSize: 70,
-                        showTitle: true
-                    )
-                    .contentShape(Rectangle()) // 扩大点击区域，确保点击响应灵敏
-                }
-                .offset(x: 120, y: 80) // 右下方位置 (向右微调)
-                .onChange(of: selectedAvatarItem) { _, newItem in
-                    processAvatarSelection(newItem)
-                }
-                .opacity(isDogVisible ? 1 : 0)
-                .animation(.easeIn.delay(0.8), value: isDogVisible)
-                
-                // 3. 气泡 (最上层) - 调整位置
-                SpeechBubbleView(text: currentMood.dialogue.text)
-                    .offset(x: 50, y: -140) // 调整气泡位置
+                    .offset(x: -30)
+                    .onChange(of: selectedItem) { _, newItem in
+                        viewModel.selectAndProcessImage(from: newItem)
+                    }
+                    
+                    if let emoji = currentMood.overlay.emoji {
+                        let config = currentMood.overlay
+                        Text(emoji)
+                            .font(.system(size: 40))
+                            .offset(x: config.offset.width - 30,
+                                    y: config.offset.height + (isAnimating ? config.offsetYTarget : 0))
+                            .scaleEffect(isAnimating ? config.scaleTarget : 1.0)
+                            .opacity(isDogVisible ? (isAnimating ? config.opacityTarget : 1.0) : 0)
+                            .animation(config.animation, value: isAnimating)
+                            .id(currentMood)
+                    }
+                    
+                    PhotosPicker(selection: $selectedAvatarItem, matching: .images) {
+                        UserAvatarView(
+                            onTap: nil,
+                            avatarSize: 70,
+                            showTitle: true
+                        )
+                        .contentShape(Rectangle())
+                    }
+                    .offset(x: 120, y: 80)
+                    .onChange(of: selectedAvatarItem) { _, newItem in
+                        processAvatarSelection(newItem)
+                    }
                     .opacity(isDogVisible ? 1 : 0)
-                    .animation(.easeIn.delay(0.6), value: isDogVisible)
-            }
-            .onAppear {
-                // 入场动画 (只执行一次)
-                withAnimation(.spring(response: 0.6, dampingFraction: 0.5, blendDuration: 0)) {
-                    isDogVisible = true
+                    .animation(.easeIn.delay(0.8), value: isDogVisible)
+                    
+                    SpeechBubbleView(text: currentMood.dialogue.text)
+                        .offset(x: 50, y: -140)
+                        .opacity(isDogVisible ? 1 : 0)
+                        .animation(.easeIn.delay(0.6), value: isDogVisible)
+                }
+                .frame(minHeight: 380)
+                .onAppear {
+                    withAnimation(.spring(response: 0.6, dampingFraction: 0.5, blendDuration: 0)) {
+                        isDogVisible = true
+                    }
+                    isAnimating = true
                 }
                 
-                // 启动状态动画
-                isAnimating = true
+                // 仪表盘
+                dashboardSection
+                    .padding(.bottom, 20)
             }
-            
-            Spacer()
-            
-            // 仪表盘
-            dashboardSection
-            
-            // 底部留白给 TabBar (因为现在 TabBar 是悬浮在上面的)
-            Spacer().frame(height: 80)
         }
+        .scrollIndicators(.hidden)
     }
     
     // MARK: - 遛狗模式视图 (新功能)
@@ -380,13 +361,11 @@ struct HomeView: View {
                             Text("开启直播")
                         }
                         .font(.caption)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(Color.white)
-                        .cornerRadius(15)
-                        .shadow(radius: 2)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 8)
+                        .glassButton()
                     }
-                    .padding(.top, -10) // 调整位置
+                    .padding(.top, -10)
                 } else {
                     HStack(spacing: 8) {
                         Circle()
@@ -424,8 +403,7 @@ struct HomeView: View {
                     }
                     .padding(.horizontal, 16)
                     .padding(.vertical, 8)
-                    .background(Color.appGreenMain.opacity(0.9))
-                    .cornerRadius(20)
+                    .glassTinted(.appGreenMain, cornerRadius: 20)
                     .padding(.top, -20)
                 }
                 
@@ -454,7 +432,6 @@ struct HomeView: View {
                 // 结束按钮
                 Button(action: {
                     withAnimation {
-                        // 结束遛狗并获取会话数据
                         walkSessionData = walkManager.stopWalk()
                         showSummary = true
                     }
@@ -464,19 +441,13 @@ struct HomeView: View {
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity)
                         .frame(height: 56)
-                        .background(Color.red.opacity(0.9))
-                        .clipShape(Capsule())
-                        .shadow(radius: 5)
+                        .primaryActionButton(gradient: [.red, .red.darker(by: 0.15)])
                 }
             }
             .padding(24)
-            .background(
-                Color.white
-                    .clipShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
-                    .shadow(color: .black.opacity(0.1), radius: 20, y: 10)
-            )
+            .glassCard(cornerRadius: 30)
             .padding(.horizontal, 20)
-            .padding(.bottom, 40) // 避开 Home Indicator
+            .padding(.bottom, 40)
         }
         .transition(.move(edge: .bottom)) // 进场动画
     }
@@ -510,8 +481,7 @@ struct HomeView: View {
             .frame(width: 160, height: 160)
             
             Button(action: {
-                // 点击开始遛狗
-                walkStartTime = Date()  // 记录开始时间
+                walkStartTime = Date()
                 withAnimation {
                     walkManager.startWalk()
                 }
@@ -524,9 +494,7 @@ struct HomeView: View {
                 .foregroundColor(.white)
                 .frame(maxWidth: .infinity)
                 .frame(height: 60)
-                .background(LinearGradient(colors: [.appGreenMain, .appGreenDark], startPoint: .leading, endPoint: .trailing))
-                .clipShape(Capsule())
-                .shadow(color: .appGreenDark.opacity(0.3), radius: 10, y: 5)
+                .primaryActionButton()
             }
             .padding(.horizontal, 50)
             

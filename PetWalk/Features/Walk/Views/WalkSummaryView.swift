@@ -111,9 +111,7 @@ struct WalkSummaryView: View {
                             }
                         }
                         .padding()
-                        .background(Color.white)
-                        .cornerRadius(15)
-                        .shadow(color: .black.opacity(0.05), radius: 5)
+                        .glassCard(cornerRadius: 16)
                         
                         // 成就列表预览
                         if !unlockedAchievements.isEmpty {
@@ -180,10 +178,14 @@ struct WalkSummaryView: View {
                         
                         // 照片预览区域
                         ZStack {
-                            RoundedRectangle(cornerRadius: 20)
-                                .fill(Color.white)
+                            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                                .fill(.ultraThinMaterial)
                                 .frame(height: 200)
-                                .shadow(color: .black.opacity(0.05), radius: 10)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 20, style: .continuous)
+                                        .stroke(Color.white.opacity(0.4), lineWidth: 0.5)
+                                )
+                                .shadow(color: .black.opacity(0.08), radius: 10, y: 4)
                             
                             if let image = selectedImage {
                                 Image(uiImage: image)
@@ -209,11 +211,10 @@ struct WalkSummaryView: View {
                                 Label("从相册选择", systemImage: "photo.on.rectangle.angled")
                                     .font(.subheadline)
                                     .fontWeight(.medium)
-                                    .foregroundColor(.white)
+                                    .foregroundColor(.appGreenMain)
                                     .frame(maxWidth: .infinity)
                                     .padding(.vertical, 12)
-                                    .background(Color.appGreenMain)
-                                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                                    .glassTinted(.appGreenMain, cornerRadius: 12)
                             }
                             .onChange(of: selectedItem) { _, newItem in
                                 Task {
@@ -230,11 +231,10 @@ struct WalkSummaryView: View {
                                 Label("拍照", systemImage: "camera.fill")
                                     .font(.subheadline)
                                     .fontWeight(.medium)
-                                    .foregroundColor(.white)
+                                    .foregroundColor(.appGreenMain)
                                     .frame(maxWidth: .infinity)
                                     .padding(.vertical, 12)
-                                    .background(Color.appGreenMain)
-                                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                                    .glassTinted(.appGreenMain, cornerRadius: 12)
                             }
                             .disabled(!UIImagePickerController.isSourceTypeAvailable(.camera))
                         }
@@ -253,9 +253,7 @@ struct WalkSummaryView: View {
                             .foregroundColor(.white)
                             .frame(maxWidth: .infinity)
                             .frame(height: 56)
-                            .background(Color.appGreenMain)
-                            .clipShape(Capsule())
-                            .shadow(color: .appGreenMain.opacity(0.4), radius: 10, y: 5)
+                            .primaryActionButton()
                     }
                     .padding(.horizontal)
                     .padding(.bottom, 30)
@@ -328,9 +326,13 @@ struct WalkSummaryView: View {
             }
             
             ZStack(alignment: .topLeading) {
-                RoundedRectangle(cornerRadius: 15)
-                    .fill(Color.white)
-                    .shadow(color: .black.opacity(0.05), radius: 5)
+                RoundedRectangle(cornerRadius: 15, style: .continuous)
+                    .fill(.ultraThinMaterial)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 15, style: .continuous)
+                            .stroke(Color.white.opacity(0.4), lineWidth: 0.5)
+                    )
+                    .shadow(color: .black.opacity(0.06), radius: 8, y: 4)
                 
                 if !aiDiaryContent.isEmpty {
                     Text(aiDiaryContent)
@@ -391,9 +393,13 @@ struct WalkSummaryView: View {
             }
             
             ZStack(alignment: .topLeading) {
-                RoundedRectangle(cornerRadius: 15)
-                    .fill(Color.white)
-                    .shadow(color: .black.opacity(0.05), radius: 5)
+                RoundedRectangle(cornerRadius: 15, style: .continuous)
+                    .fill(.ultraThinMaterial)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 15, style: .continuous)
+                            .stroke(Color.white.opacity(0.4), lineWidth: 0.5)
+                    )
+                    .shadow(color: .black.opacity(0.06), radius: 8, y: 4)
                 
                 if ownerNote.isEmpty && !isNoteFieldFocused {
                     Text("记录一下今天的遛狗心情吧...")
@@ -667,14 +673,11 @@ struct AchievementUnlockPopup: View {
                         .foregroundColor(.white)
                         .frame(width: 200)
                         .padding()
-                        .background(achievement.category.color)
-                        .cornerRadius(15)
+                        .primaryActionButton(gradient: [achievement.category.color, achievement.category.color.darker(by: 0.1)])
                 }
             }
             .padding(30)
-            .background(Color.appBackground)
-            .cornerRadius(25)
-            .shadow(radius: 20)
+            .glassCard(cornerRadius: 28)
             .padding(40)
         }
         .onAppear {
@@ -699,9 +702,7 @@ struct StatBox: View {
         }
         .frame(maxWidth: .infinity)
         .padding(20)
-        .background(Color.white)
-        .cornerRadius(20)
-        .shadow(color: .black.opacity(0.05), radius: 10)
+        .glassCard(cornerRadius: 20)
     }
 }
 
@@ -717,10 +718,21 @@ struct MoodButton: View {
         Button(action: { selectedMood = mood }) {
             VStack {
                 ZStack {
-                    Circle()
-                        .fill(isSelected ? color : Color.white)
-                        .frame(width: 60, height: 60)
-                        .shadow(color: isSelected ? color.opacity(0.4) : .black.opacity(0.05), radius: 8)
+                    if isSelected {
+                        Circle()
+                            .fill(color)
+                            .frame(width: 60, height: 60)
+                            .shadow(color: color.opacity(0.35), radius: 10, y: 4)
+                    } else {
+                        Circle()
+                            .fill(.ultraThinMaterial)
+                            .frame(width: 60, height: 60)
+                            .overlay(
+                                Circle()
+                                    .stroke(Color.white.opacity(0.5), lineWidth: 0.5)
+                            )
+                            .shadow(color: .black.opacity(0.08), radius: 6, y: 3)
+                    }
                     
                     Image(systemName: icon)
                         .font(.title2)

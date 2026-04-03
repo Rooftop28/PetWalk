@@ -86,3 +86,77 @@ extension Color {
         return Color(hue: Double(h), saturation: Double(s), brightness: min(1, Double(b) + percentage), opacity: Double(a))
     }
 }
+
+// MARK: - Liquid Glass 样式扩展
+
+extension View {
+    /// 主要玻璃卡片 (Island)：带 ambient 阴影的浮动卡片
+    func glassCard(cornerRadius: CGFloat = 24) -> some View {
+        self
+            .background(
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .fill(.ultraThinMaterial)
+            )
+            .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+            .shadow(color: .black.opacity(0.04), radius: 10, x: 0, y: 4)
+    }
+    
+    /// 次要玻璃卡片：更轻的 Island
+    func glassCardLight(cornerRadius: CGFloat = 24) -> some View {
+        self
+            .background(
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .fill(.thinMaterial)
+            )
+            .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+            .shadow(color: .black.opacity(0.04), radius: 10, x: 0, y: 4)
+    }
+    
+    /// 浮动按钮：胶囊形毛玻璃
+    func glassButton() -> some View {
+        self
+            .background(
+                Capsule()
+                    .fill(.ultraThinMaterial)
+            )
+            .clipShape(Capsule())
+            .shadow(color: .black.opacity(0.04), radius: 10, x: 0, y: 4)
+    }
+    
+    /// 圆形图标按钮
+    func glassCircle() -> some View {
+        self
+            .background(
+                Circle()
+                    .fill(.ultraThinMaterial)
+            )
+            .clipShape(Circle())
+            .shadow(color: .black.opacity(0.04), radius: 10, x: 0, y: 4)
+    }
+    
+    /// 带品牌色调的 Island
+    func glassTinted(_ color: Color, cornerRadius: CGFloat = 24) -> some View {
+        self
+            .background(
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .fill(color.opacity(0.12))
+                    .background(
+                        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                            .fill(.ultraThinMaterial)
+                    )
+            )
+            .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+            .shadow(color: .black.opacity(0.04), radius: 10, x: 0, y: 4)
+    }
+    
+    /// CTA 按钮：主操作按钮
+    func primaryActionButton(gradient: [Color] = [.appGreenMain, .appGreenDark]) -> some View {
+        self
+            .background(
+                Capsule()
+                    .fill(LinearGradient(colors: gradient, startPoint: .leading, endPoint: .trailing))
+            )
+            .clipShape(Capsule())
+            .shadow(color: gradient.first?.opacity(0.25) ?? .clear, radius: 10, x: 0, y: 4)
+    }
+}

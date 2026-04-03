@@ -80,7 +80,7 @@ struct AchievementView: View {
                         }
                     }
                     .padding()
-                    .padding(.bottom, 80) // 底部留白给 TabBar
+                    .padding(.bottom, 20)
                 }
             }
         }
@@ -124,11 +124,9 @@ struct AchievementView: View {
             .padding(.top, 10)
         }
         .padding()
-        .background(Color.white.opacity(0.8))
-        .clipShape(RoundedRectangle(cornerRadius: 15))
+        .glassCard(cornerRadius: 18)
         .padding(.horizontal)
         .padding(.bottom)
-        .shadow(color: .black.opacity(0.05), radius: 5)
     }
     
     // MARK: - 分类 Tab Bar
@@ -235,8 +233,7 @@ struct AchievementCard: View {
                     )
             }
         }
-        .clipShape(RoundedRectangle(cornerRadius: 15))
-        .shadow(color: .black.opacity(0.05), radius: 5)
+        .glassCardLight(cornerRadius: 16)
     }
     
     // MARK: - 主内容

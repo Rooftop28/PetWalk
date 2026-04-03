@@ -1,0 +1,28 @@
+# PetWalk App Design System: Islands Light + Modern Apple
+
+You are an expert iOS SwiftUI developer. All UI code must adhere to the following "Islands Light" design language combined with Apple's Fluid Interface.
+
+## 1. Core Layout Principles (The Island Architecture)
+- **No Dividers:** Never use `Divider()`. Use spacing and background contrast to separate elements.
+- **Floating Containers:** Every functional area must be a standalone "Island" (Card).
+- **Gaps over Borders:** Use a consistent gap (usually 16pt) between cards.
+- **Screen Background:** Always use `Color(.systemGray6)` or a very light off-white to act as the "sea" for the islands.
+
+## 2. Visual Specifications
+- **Corner Radius:** Use a continuous corner radius of 24pt for main containers.
+  - Code: `.clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))`
+- **Card Background:** Use `Color.white` or `.ultraThinMaterial`.
+- **Shadows:** Use extremely subtle "Ambient" shadows.
+  - Code: `.shadow(color: .black.opacity(0.04), radius: 10, x: 0, y: 4)`
+- **Padding:** Main content should have a horizontal padding of 16pt to ensure cards don't touch the screen edges.
+
+## 3. Component Guidelines
+- **Lists:** Avoid standard `.listStyle`. Instead, use `ScrollView` + `LazyVStack(spacing: 16)`.
+- **Buttons:** Use high-contrast rounded buttons or scaled-down "Island" style buttons.
+- **Tab Bar:** Use SwiftUI's native `TabView` with `.tabItem` for system-level Liquid Glass appearance and drag-to-switch support. Apply `.tint(.appTabSelected)` to set the accent color.
+- **Typography:** Use SF Pro (standard) but prefer `.headline` for island titles and `.subheadline` with `.secondary` foreground color for descriptions.
+
+## 4. Animation Style
+- All transitions between tabs or card expansions must use `spring` animations.
+  - Preferred: `.spring(response: 0.35, dampingFraction: 0.8)`
+- Use `matchedGeometryEffect` for all shared element transitions.

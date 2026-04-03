@@ -7,37 +7,39 @@
 
 import SwiftUI
 
-enum Tab {
-    case home
-    case history
-    case achievement  // 原 dress，改为 achievement
+enum Tab: Int, CaseIterable {
+    case home = 0
+    case history = 1
+    case achievement = 2
 }
 
 struct MainTabView: View {
     @State private var selectedTab: Tab = .home
     
     var body: some View {
-        ZStack(alignment: .bottom) {
-            // 主内容区
-            Group {
-                switch selectedTab {
-                case .home:
-                    HomeView()
-                case .history:
-                    HistoryView()
-                case .achievement:
-                    AchievementView()  // 替换为成就页面
+        TabView(selection: $selectedTab) {
+            HomeView()
+                .tabItem {
+                    Label("陪伴", systemImage: "pawprint.fill")
                 }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .tag(Tab.home)
             
-            // 底部导航栏 (悬浮在最上方)
-            CustomTabBar(selectedTab: $selectedTab)
+            HistoryView()
+                .tabItem {
+                    Label("足迹", systemImage: "chart.bar.fill")
+                }
+                .tag(Tab.history)
+            
+            AchievementView()
+                .tabItem {
+                    Label("成就", systemImage: "trophy.fill")
+                }
+                .tag(Tab.achievement)
         }
+        .tint(.appTabSelected)
     }
 }
 
 #Preview {
     MainTabView()
 }
-

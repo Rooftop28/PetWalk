@@ -117,9 +117,7 @@ struct ReminderSettingsView: View {
             }
         }
         .padding()
-        .background(Color.white)
-        .clipShape(RoundedRectangle(cornerRadius: 15))
-        .shadow(color: .black.opacity(0.05), radius: 5)
+        .glassCard(cornerRadius: 18)
     }
     
     // MARK: - 每日提醒卡片
@@ -210,9 +208,7 @@ struct ReminderSettingsView: View {
                 .padding(.vertical, 12)
             }
         }
-        .background(Color.white)
-        .clipShape(RoundedRectangle(cornerRadius: 15))
-        .shadow(color: .black.opacity(0.05), radius: 5)
+        .glassCard(cornerRadius: 18)
     }
     
     // MARK: - 通知预览卡片
@@ -264,9 +260,7 @@ struct ReminderSettingsView: View {
             .clipShape(RoundedRectangle(cornerRadius: 12))
         }
         .padding()
-        .background(Color.white)
-        .clipShape(RoundedRectangle(cornerRadius: 15))
-        .shadow(color: .black.opacity(0.05), radius: 5)
+        .glassCard(cornerRadius: 18)
     }
     
     // MARK: - 说明文字

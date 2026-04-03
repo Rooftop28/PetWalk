@@ -61,8 +61,8 @@ struct PetWalkApp: App {
                         .transition(.opacity)
                 }
             }
+            .preferredColorScheme(.light)
             .animation(.easeInOut(duration: 0.5), value: initializer.isReady)
-            // 监听 onboarding 状态变化的动画
             .animation(.easeInOut(duration: 0.5), value: dataManager.userData.hasCompletedOnboarding)
             // 监听场景状态，回到前台时清除角标
             .onChange(of: scenePhase) { _, newPhase in

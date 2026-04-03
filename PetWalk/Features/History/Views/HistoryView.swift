@@ -162,7 +162,7 @@ struct HistoryView: View {
                                 }
                             }
                             .padding(.horizontal, 20)
-                            .padding(.bottom, 100) // 防止被底部 TabBar 遮挡
+                            .padding(.bottom, 20)
                         }
                         .padding(.top, 10)
                 }

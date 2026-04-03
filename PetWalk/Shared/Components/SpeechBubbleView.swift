@@ -16,16 +16,21 @@ struct SpeechBubbleView: View {
             .foregroundColor(.appBrown)
             .padding(.horizontal, 16)
             .padding(.vertical, 10)
-            .background(Color.appYellowBlob.opacity(0.4))
-            .background(Color.white.opacity(0.6))
-            .clipShape(RoundedRectangle(cornerRadius: 16))
+            .background(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(.ultraThinMaterial)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .stroke(Color.white.opacity(0.6), lineWidth: 0.5)
+            )
             .overlay(
                 Image(systemName: "arrowtriangle.down.fill")
-                    .foregroundColor(.white.opacity(0.6))
+                    .foregroundColor(.white.opacity(0.5))
                     .font(.system(size: 14))
                     .offset(x: -10, y: 18)
                 , alignment: .bottomLeading
             )
-            .shadow(color: .black.opacity(0.05), radius: 5, x: 0, y: 2)
+            .shadow(color: .black.opacity(0.08), radius: 10, y: 4)
     }
 }
