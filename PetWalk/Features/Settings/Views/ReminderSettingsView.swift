@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import PhotosUI
 
 /// 提醒时间项（用于列表展示与增删）
 private struct ReminderTimeRow: Identifiable {
@@ -342,6 +343,9 @@ struct SettingsView: View {
     @State private var showAbout = false
     @State private var showCopiedToast = false
     @State private var showRestoreSheet = false
+    @State private var selectedPetPhotoItem: PhotosPickerItem?
+    @State private var isPetPhotoProcessing = false
+    @ObservedObject private var petViewModel = PetViewModel.shared
     
     var body: some View {
         NavigationView {
@@ -437,6 +441,63 @@ struct SettingsView: View {
                     
                     // 个人资料 & 宠物档案
                     Section {
+                        // 更换宠物照片
+                        PhotosPicker(selection: $selectedPetPhotoItem, matching: .images) {
+                            HStack(spacing: 15) {
+                                ZStack {
+                                    if let petImage = petViewModel.currentPetImage {
+                                        Image(uiImage: petImage)
+                                            .resizable()
+                                            .scaledToFill()
+                                            .frame(width: 30, height: 30)
+                                            .clipShape(RoundedRectangle(cornerRadius: 6))
+                                    } else {
+                                        Image(systemName: "camera.fill")
+                                            .font(.system(size: 18))
+                                            .foregroundColor(.appGreenMain)
+                                            .frame(width: 30, height: 30)
+                                            .background(Color.appGreenMain.opacity(0.15))
+                                            .clipShape(RoundedRectangle(cornerRadius: 6))
+                                    }
+                                }
+                                
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("更换宠物照片")
+                                        .foregroundColor(.primary)
+                                    if isPetPhotoProcessing {
+                                        Text("抠图处理中…")
+                                            .font(.caption)
+                                            .foregroundColor(.appGreenMain)
+                                    } else {
+                                        Text(petViewModel.currentPetImage != nil ? "已设置" : "选择照片自动抠图")
+                                            .font(.caption)
+                                            .foregroundColor(.gray)
+                                    }
+                                }
+                                
+                                Spacer()
+                                
+                                if isPetPhotoProcessing {
+                                    ProgressView()
+                                } else {
+                                    Image(systemName: "chevron.right")
+                                        .font(.caption)
+                                        .foregroundColor(.gray.opacity(0.5))
+                                }
+                            }
+                            .contentShape(Rectangle())
+                        }
+                        .onChange(of: selectedPetPhotoItem) { _, newItem in
+                            guard let item = newItem else { return }
+                            isPetPhotoProcessing = true
+                            petViewModel.selectAndProcessImage(from: item)
+                        }
+                        .onChange(of: petViewModel.isProcessing) { _, isProcessing in
+                            if !isProcessing {
+                                isPetPhotoProcessing = false
+                            }
+                        }
+                        
                         // 基础称呼 (EditProfileView)
                         Button {
                             showEditProfile = true
@@ -577,6 +638,10 @@ struct SettingsView: View {
             }
             .sheet(isPresented: $showRestoreSheet) {
                 RestoreAccountSheet()
+            }
+            .sheet(isPresented: $petViewModel.showConfirmation) {
+                PetPhotoConfirmView()
+                    .interactiveDismissDisabled()
             }
             .overlay {
                 if showCopiedToast {

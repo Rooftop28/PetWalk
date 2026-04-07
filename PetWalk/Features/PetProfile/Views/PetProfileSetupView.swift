@@ -150,6 +150,7 @@ struct PetCertificateView: View {
     let name: String
     let ownerName: String
     let profile: PetProfile
+    @ObservedObject private var petViewModel = PetViewModel.shared
     
     var body: some View {
         VStack(spacing: 20) {
@@ -159,17 +160,27 @@ struct PetCertificateView: View {
                 .foregroundColor(.appBrown)
             
             VStack(spacing: 16) {
-                // Avatar Placeholder
                 ZStack {
-                    Circle()
-                        .fill(Color.gray.opacity(0.1))
-                        .frame(width: 120, height: 120)
-                    
-                    Image(systemName: "dog.fill")
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 60, height: 60)
-                        .foregroundColor(.appBrown)
+                    if let petImage = petViewModel.currentPetImage {
+                        Image(uiImage: petImage)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: 120, height: 120)
+                            .clipShape(Circle())
+                            .overlay(
+                                Circle().stroke(Color.appGreenMain, lineWidth: 3)
+                            )
+                    } else {
+                        Circle()
+                            .fill(Color.gray.opacity(0.1))
+                            .frame(width: 120, height: 120)
+                        
+                        Image(systemName: "dog.fill")
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 60, height: 60)
+                            .foregroundColor(.appBrown)
+                    }
                     
                     // Gender badge
                     if profile.gender != .unknown {

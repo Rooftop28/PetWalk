@@ -8,47 +8,66 @@
 import SwiftUI
 import PhotosUI
 
-@MainActor // 确保所有 UI 更新都在主线程
+@MainActor
 class PetViewModel: ObservableObject {
-    // 当前显示的宠物图片
+    static let shared = PetViewModel()
+    
     @Published var currentPetImage: UIImage?
-    // 是否正在处理中（显示菊花转圈）
     @Published var isProcessing = false
     
-    // 图片保存的文件名
+    /// 抠图完成后待确认的图片
+    @Published var pendingImage: UIImage?
+    /// 是否显示确认页面
+    @Published var showConfirmation = false
+    
     private let fileName = "saved_pet_image.png"
     
     init() {
-        // App 启动时，尝试加载之前保存的图片
         loadSavedImage()
     }
     
-    // MARK: - 用户选图处理
+    // MARK: - 用户选图处理（抠图后进入确认流程）
     func selectAndProcessImage(from item: PhotosPickerItem?) {
         guard let item = item else { return }
         
         isProcessing = true
         
         Task {
-            // 1. 从相册加载原始数据
             if let data = try? await item.loadTransferable(type: Data.self),
                let originalImage = UIImage(data: data) {
                 
-                // 2. 调用 Vision 进行抠图
                 if let processedImage = await ImageProcessor.removeBackground(from: originalImage) {
-                    // 3. 更新 UI
-                    self.currentPetImage = processedImage
-                    // 4. 保存到本地文件
-                    saveImageToDocuments(processedImage)
-                    
-                    WatchConnector.shared.sendImageToWatch(processedImage)
+                    self.pendingImage = processedImage
+                    self.showConfirmation = true
                 }
             }
             self.isProcessing = false
         }
     }
     
-    // MARK: - 本地存储逻辑 (简单版)
+    // MARK: - 确认保存
+    func confirmPendingImage() {
+        guard let image = pendingImage else { return }
+        currentPetImage = image
+        saveImageToDocuments(image)
+        WatchConnector.shared.sendImageToWatch(image)
+        pendingImage = nil
+        showConfirmation = false
+    }
+    
+    /// 旋转待确认图片 90 度
+    func rotatePendingImage() {
+        guard let image = pendingImage else { return }
+        pendingImage = ImageProcessor.rotate(image, degrees: 90)
+    }
+    
+    // MARK: - 取消
+    func cancelPendingImage() {
+        pendingImage = nil
+        showConfirmation = false
+    }
+    
+    // MARK: - 本地存储
     
     private func saveImageToDocuments(_ image: UIImage) {
         guard let data = image.pngData() else { return }

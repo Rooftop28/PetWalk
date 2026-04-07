@@ -8,8 +8,7 @@ import SwiftUI
 import PhotosUI
 
 struct HomeView: View {
-    // 引入 ViewModel
-    @StateObject private var viewModel = PetViewModel()
+    @ObservedObject private var viewModel = PetViewModel.shared
     
     // 引入健康数据管理器 (全天数据)
     @StateObject private var healthManager = HealthManager()
@@ -20,9 +19,8 @@ struct HomeView: View {
     // 引入数据管理器 (用于获取上次遛狗时间)
     @ObservedObject private var dataManager = DataManager.shared
     
-    // 相册选择器的状态
-    @State private var selectedItem: PhotosPickerItem? // 宠物
-    @State private var selectedAvatarItem: PhotosPickerItem? // 人物头像
+    // 相册选择器的状态 (人物头像, V2: enableAvatar)
+    @State private var selectedAvatarItem: PhotosPickerItem?
     
     // 动画状态
     @State private var isDogVisible = false
@@ -211,41 +209,36 @@ struct HomeView: View {
                         .frame(height: 350)
                         .offset(y: -20)
                     
-                    PhotosPicker(selection: $selectedItem, matching: .images) {
-                        ZStack {
-                            if viewModel.isProcessing {
-                                ProgressView()
-                                    .scaleEffect(2)
-                                    .tint(.appBrown)
+                    ZStack {
+                        if viewModel.isProcessing {
+                            ProgressView()
+                                .scaleEffect(2)
+                                .tint(.appBrown)
+                        } else {
+                            if let image = viewModel.currentPetImage {
+                                Image(uiImage: image)
+                                    .resizable()
+                                    .scaledToFit()
                             } else {
-                                if let image = viewModel.currentPetImage {
-                                    Image(uiImage: image)
-                                        .resizable()
-                                        .scaledToFit()
-                                } else {
-                                    Image("tongtong")
-                                        .resizable()
-                                        .scaledToFit()
-                                }
+                                Image("tongtong")
+                                    .resizable()
+                                    .scaledToFit()
                             }
                         }
-                        .frame(height: 280)
-                        .shadow(color: .white, radius: 0, x: 2, y: 0)
-                        .shadow(color: .white, radius: 0, x: -2, y: 0)
-                        .shadow(color: .white, radius: 0, x: 0, y: 2)
-                        .shadow(color: .white, radius: 0, x: 0, y: -2)
-                        .shadow(color: .black.opacity(0.1), radius: 10, x: 0, y: 10)
-                        .rotationEffect(.degrees(currentMood.anim.rotationAngle))
-                        .scaleEffect(x: 1.0, y: currentMood.anim.scaleY)
-                        .offset(y: (isAnimating ? currentMood.anim.bounceHeight : 0) + currentMood.anim.offsetY)
-                        .animation(currentMood.anim.timing, value: isAnimating)
-                        .scaleEffect(isDogVisible ? 1.0 : 0.8)
-                        .opacity(isDogVisible ? 1.0 : 0)
                     }
+                    .frame(height: 280)
+                    .shadow(color: .white, radius: 0, x: 2, y: 0)
+                    .shadow(color: .white, radius: 0, x: -2, y: 0)
+                    .shadow(color: .white, radius: 0, x: 0, y: 2)
+                    .shadow(color: .white, radius: 0, x: 0, y: -2)
+                    .shadow(color: .black.opacity(0.1), radius: 10, x: 0, y: 10)
+                    .rotationEffect(.degrees(currentMood.anim.rotationAngle))
+                    .scaleEffect(x: 1.0, y: currentMood.anim.scaleY)
+                    .offset(y: (isAnimating ? currentMood.anim.bounceHeight : 0) + currentMood.anim.offsetY)
+                    .animation(currentMood.anim.timing, value: isAnimating)
+                    .scaleEffect(isDogVisible ? 1.0 : 0.8)
+                    .opacity(isDogVisible ? 1.0 : 0)
                     .offset(x: -30)
-                    .onChange(of: selectedItem) { _, newItem in
-                        viewModel.selectAndProcessImage(from: newItem)
-                    }
                     
                     if let emoji = currentMood.overlay.emoji {
                         let config = currentMood.overlay
