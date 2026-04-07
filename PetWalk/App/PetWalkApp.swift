@@ -23,6 +23,9 @@ struct PetWalkApp: App {
     // 观察 DataManager 以检查 onboarding 状态
     @ObservedObject private var dataManager = DataManager.shared
     
+    // Deep Link 路由器
+    @ObservedObject private var deepLinkRouter = DeepLinkRouter.shared
+    
     // 监听 App 生命周期
     @Environment(\.scenePhase) var scenePhase
     
@@ -66,6 +69,9 @@ struct PetWalkApp: App {
             .preferredColorScheme(.light)
             .animation(.easeInOut(duration: 0.5), value: initializer.isReady)
             .animation(.easeInOut(duration: 0.5), value: dataManager.userData.hasCompletedOnboarding)
+            .onOpenURL { url in
+                deepLinkRouter.handleURL(url)
+            }
             // 监听场景状态，回到前台时清除角标
             .onChange(of: scenePhase) { _, newPhase in
                 if newPhase == .active {

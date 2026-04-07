@@ -16,5 +16,16 @@
 	<string>PetWalk 需要访问麦克风，以便录制狗狗的叫声作为专属提示音。</string>
 	<key>NSSupportsLiveActivities</key>
 	<true/>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.petwalk.deeplink</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>petwalk</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>

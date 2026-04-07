@@ -26,3 +26,30 @@ You are an expert iOS SwiftUI developer. All UI code must adhere to the followin
 - All transitions between tabs or card expansions must use `spring` animations.
   - Preferred: `.spring(response: 0.35, dampingFraction: 0.8)`
 - Use `matchedGeometryEffect` for all shared element transitions.
+
+
+# --------------------------------------------------
+# 🐶 PetWalk AI Agent & Coze Integration Extensions
+# --------------------------------------------------
+
+## 5. AI Agent & Coze Logic Rules
+- **Schema-First Development**: 当 Cursor 创建新的 Service 或 Controller 时，必须同步更新 `docs/api-spec.yaml`。所有接口描述需针对豆包/Coze 优化。
+- **Semantic Returns**: API 返回值不仅要包含原始数值，还必须包含 `ai_summary` 字符串。
+  - *示例*: 不要只返回 `distance: 5.2`，应包含 `"ai_summary": "今天带球球走了5.2公里，已经达成了‘雪地勇士’成就！"`
+- **DeepLink Driven**: 每个 Island（卡片）在 UI 层的 Model 必须包含一个 `deepLinkURL` 属性。
+  - *代码要求*: 所有的成就卡片或日记卡片需支持从外部 URL 直接唤起并定位。
+
+## 6. AI-Friendly UI Specifications (A2UI)
+- **Accessibility Hierarchy**: 所有的 "Island" 容器必须添加 `.accessibilityElement(children: .combine)`。
+- **Labeling**: 关键交互按钮（如“开始遛狗”、“生成日记”）必须具备 `.accessibilityLabel`，描述需包含动作动词。
+  - *示例*: `.accessibilityLabel("开始记录本次遛狗行程")`
+- **Component Metadata**: 复杂的视图组件（如运动曲线图）必须提供一个隐藏的文本描述，供 AI 视觉助手（豆包屏幕理解）提取核心数据。
+
+## 7. DeepSeek Diary Engine Integration
+- **Prompt Architecture**: 调用 DeepSeek 时，必须注入 `pet_personality` (如: 活泼、拆家、胆小) 作为 System Prompt 的核心约束。
+- **First-Person Narrative**: 强制要求 DeepSeek 以宠物的第一人称进行文案创作。
+- **Content Structure**: 日记返回应为结构化 JSON，包含 `diary_text`, `mood_score`, `weather_context`。
+
+## 8. Specific Cursor Commands
+- **"Create Agent API"**: 当使用此指令时，Cursor 需同时生成：1. 符合 Islands 风格的 SwiftUI 视图 2. 对应的 OpenAPI 描述文件 3. 容错处理逻辑。
+- **"Verify Coze Compatibility"**: 让 Cursor 检查当前 API 定义是否缺少 `description` 或 `operationId`。

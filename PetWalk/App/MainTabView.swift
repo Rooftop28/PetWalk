@@ -14,10 +14,10 @@ enum Tab: Int, CaseIterable {
 }
 
 struct MainTabView: View {
-    @State private var selectedTab: Tab = .home
+    @ObservedObject private var router = DeepLinkRouter.shared
     
     var body: some View {
-        TabView(selection: $selectedTab) {
+        TabView(selection: $router.selectedTab) {
             HomeView()
                 .tabItem {
                     Label("陪伴", systemImage: "pawprint.fill")

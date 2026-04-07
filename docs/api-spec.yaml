@@ -1,0 +1,756 @@
+openapi: "3.0.3"
+info:
+  title: PetWalk AI Agent API
+  version: "1.0.0"
+  description: |
+    PetWalk 应用的 AI Agent API 接口定义。
+    所有接口的返回值均包含 `ai_summary` 字段（自然语言摘要，方便 AI Agent / Coze 理解上下文）
+    和 `deep_link_url` 字段（用于直接唤起 App 对应页面）。
+    
+    **使用场景**：
+    - Coze / 豆包 AI Agent 通过 App Intents 或 Deep Link 控制 PetWalk
+    - Siri / Shortcuts 自动化遛狗流程
+    - 第三方 AI 助手读取遛狗数据和日记
+
+servers:
+  - url: petwalk://
+    description: iOS Deep Link (本地调用)
+
+paths:
+  /walk/start:
+    post:
+      operationId: startWalk
+      summary: 开始遛狗
+      description: |
+        启动一次遛狗会话。调用后 App 将开启 GPS 追踪、Live Activity，并开始计时。
+        AI Agent 应在用户明确表达"想去遛狗"或"出发散步"时调用此接口。
+        注意：如果当前已在遛狗中，不应重复调用。请先通过 GET /walk/status 检查状态。
+      tags:
+        - Walking
+      responses:
+        "200":
+          description: 遛狗已成功启动
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StartWalkResponse"
+              example:
+                success: true
+                walk_id: "550E8400-E29B-41D4-A716-446655440000"
+                start_time: "2026-04-07T18:00:00Z"
+                ai_summary: "已开始带球球遛弯，GPS 追踪已启动，祝你们散步愉快！"
+                deep_link_url: "petwalk://walk/active"
+
+  /walk/stop:
+    post:
+      operationId: stopWalk
+      summary: 结束遛狗
+      description: |
+        结束当前遛狗会话。系统将自动计算骨头币奖励、检测成就解锁，并保存遛狗记录。
+        AI Agent 应在用户说"到家了"、"结束遛狗"、"回来了"等语境下调用。
+        返回值包含完整的遛狗数据和新解锁的成就列表。
+      tags:
+        - Walking
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StopWalkRequest"
+            example:
+              mood: "happy"
+      responses:
+        "200":
+          description: 遛狗已结束，包含完整统计和奖励
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StopWalkResponse"
+              example:
+                success: true
+                walk_id: "550E8400-E29B-41D4-A716-446655440000"
+                distance: 2.35
+                duration_seconds: 1800
+                average_speed: 4.7
+                bones_earned: 24
+                new_achievements:
+                  - id: "marathon"
+                    name: "全马选手"
+                    description: "累计遛狗里程达到 42.195 公里"
+                    category: "里程达人"
+                    rarity: "稀有"
+                    reward_bones: 100
+                    is_unlocked: true
+                    deep_link_url: "petwalk://achievement/marathon"
+                ai_summary: "和球球完成了2.35公里、30分钟的遛弯，还解锁了「全马选手」成就！"
+                deep_link_url: "petwalk://walk/summary/550E8400-E29B-41D4-A716-446655440000"
+
+  /walk/status:
+    get:
+      operationId: getWalkStatus
+      summary: 查询遛狗状态
+      description: |
+        获取当前是否正在遛狗，以及实时的距离、时长、速度数据。
+        AI Agent 应在需要了解用户当前状态时调用（例如用户问"我走了多远了？"）。
+        也可用于判断是否应该调用 startWalk 或 stopWalk。
+      tags:
+        - Walking
+      responses:
+        "200":
+          description: 当前遛狗状态
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WalkStatusResponse"
+
+  /walk/today:
+    get:
+      operationId: getTodayStats
+      summary: 今日遛狗统计
+      description: |
+        获取今天的遛狗汇总数据，包括总距离、次数、时长和每日目标完成进度。
+        AI Agent 应在用户询问"今天遛了多久？"、"今日目标完成了吗？"等问题时调用。
+      tags:
+        - Walking
+      responses:
+        "200":
+          description: 今日统计数据
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TodayStatsResponse"
+              example:
+                total_distance: 3.5
+                walk_count: 2
+                total_duration_minutes: 45
+                daily_goal_km: 3.0
+                goal_progress: 1.0
+                ai_summary: "太棒了！今天带球球走了3.5公里，已经完成每日目标！"
+                deep_link_url: "petwalk://history/today"
+
+  /walk/history:
+    get:
+      operationId: getWalkHistory
+      summary: 遛狗历史记录
+      description: |
+        获取遛狗历史列表（默认最近 20 条）。每条记录包含距离、时长、心情、
+        是否有照片和日记，以及对应的 Deep Link。
+        AI Agent 可在用户问"上次遛了多远？"、"这周遛了几次？"时调用。
+      tags:
+        - Walking
+      parameters:
+        - name: limit
+          in: query
+          description: 返回的最大记录条数（默认 20）
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: 遛狗历史列表
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WalkHistoryResponse"
+
+  /diary/generate:
+    post:
+      operationId: generateDiary
+      summary: 生成 AI 日记
+      description: |
+        调用 DeepSeek AI 以宠物第一人称视角生成遛狗日记。
+        日记风格由宠物档案中的 personality 和 voice_style 决定。
+        可以指定 walk_record_id 关联到已有记录，也可以直接传入遛狗数据临时生成。
+        AI Agent 应在用户说"帮我写日记"、"生成今天的日记"时调用。
+      tags:
+        - Diary
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenerateDiaryRequest"
+            example:
+              walk_record_id: "550E8400-E29B-41D4-A716-446655440000"
+              distance_km: 2.35
+              duration_minutes: 30
+              weather_condition: "sunny"
+              weather_temperature: 22
+              special_events: ["路过了3家餐厅但没吃"]
+      responses:
+        "200":
+          description: AI 日记生成结果
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenerateDiaryResponse"
+
+  /diary/today:
+    get:
+      operationId: getTodayDiaries
+      summary: 查看今日日记
+      description: |
+        获取今天所有的遛狗日记。返回值包含每次遛狗的日记文本、心情、距离等。
+        AI Agent 应在用户说"看看今天的日记"、"狗狗今天说了什么？"时调用。
+        如果今天没有遛狗记录，ai_summary 会提示用户先去遛弯。
+      tags:
+        - Diary
+      responses:
+        "200":
+          description: 今日日记列表
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TodayDiaryResponse"
+              example:
+                has_diary: true
+                diaries:
+                  - walk_record_id: "550E8400-E29B-41D4-A716-446655440000"
+                    date: "04月07日"
+                    time: "18:30"
+                    diary_text: "今天和主人去了公园，闻到了好多有趣的味道……"
+                    distance_km: 2.35
+                    duration_minutes: 30
+                    mood: "happy"
+                    deep_link_url: "petwalk://diary/550E8400-E29B-41D4-A716-446655440000"
+                ai_summary: "球球今天有1篇日记，快来看看狗狗的内心世界吧！"
+                deep_link_url: "petwalk://diary/today"
+
+  /achievement/overview:
+    get:
+      operationId: getAchievementOverview
+      summary: 成就完成度总览
+      description: |
+        获取成就系统的整体进度，包括各类别完成数、总骨头币、连续打卡天数。
+        AI Agent 应在用户问"我的成就完成度如何？"、"成就进度怎么样了？"时调用。
+      tags:
+        - Achievement
+      responses:
+        "200":
+          description: 成就总览数据
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AchievementOverviewResponse"
+              example:
+                total_count: 43
+                unlocked_count: 12
+                progress_percent: 27.9
+                total_bones: 850
+                current_streak: 5
+                categories:
+                  - category: "里程达人"
+                    unlocked: 3
+                    total: 6
+                    deep_link_url: "petwalk://achievement"
+                ai_summary: "球球目前解锁了12/43个成就（28%），继续加油！"
+                deep_link_url: "petwalk://achievement"
+
+  /achievement/recent:
+    get:
+      operationId: getRecentAchievements
+      summary: 最近完成的成就
+      description: |
+        获取最近解锁的成就列表（默认最多 5 个），每条包含名称、描述、稀有度、进度。
+        AI Agent 应在用户问"最近完成了什么成就？"、"上次解锁了啥？"时调用。
+      tags:
+        - Achievement
+      parameters:
+        - name: limit
+          in: query
+          description: 最多返回条数（默认 5）
+          schema:
+            type: integer
+            default: 5
+      responses:
+        "200":
+          description: 最近解锁的成就列表
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecentAchievementsResponse"
+
+  /achievement/suggestions:
+    get:
+      operationId: getAchievementSuggestions
+      summary: 今天可能完成的成就
+      description: |
+        根据当前天气、时间和用户进度，智能推荐最可能完成的成就。
+        AI Agent 应在以下场景调用：
+        - 用户问"今天有什么成就可以完成？"
+        - 用户问"下雪天/雨天有什么成就？"（传入 weather_condition）
+        - 用户问"我快完成哪些成就了？"
+        支持传入天气参数以获取天气相关成就建议。
+      tags:
+        - Achievement
+      parameters:
+        - name: weather_condition
+          in: query
+          description: 当前天气状况（可选，如 sunny/rainy/snowy/foggy）
+          schema:
+            type: string
+            enum: [sunny, cloudy, rainy, snowy, foggy]
+        - name: temperature
+          in: query
+          description: 当前温度（摄氏度，可选）
+          schema:
+            type: number
+            format: double
+      responses:
+        "200":
+          description: 成就建议列表
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AchievementSuggestionsResponse"
+              example:
+                suggestions:
+                  - achievement:
+                      id: "distance_50"
+                      name: "街道探险家"
+                      description: "累计遛狗 50 公里"
+                      category: "里程达人"
+                      rarity: "普通"
+                      reward_bones: 80
+                      is_unlocked: false
+                      is_secret: false
+                      is_hint_revealed: false
+                      progress_current: 45
+                      progress_target: 50
+                      progress_percent: 90
+                      deep_link_url: "petwalk://achievement/distance_50"
+                    reason: "再需要5公里即可达成！"
+                    difficulty: "容易"
+                ai_summary: "球球今天有机会完成「街道探险家」等3个成就，出门试试吧！"
+                deep_link_url: "petwalk://achievement"
+
+  /achievement/{id}:
+    get:
+      operationId: getAchievement
+      summary: 查看成就详情
+      description: |
+        根据成就 ID 获取成就详情，包括名称、描述、类别、稀有度、进度和奖励。
+        AI Agent 可在用户说"这个成就怎么解锁？"、"全马选手是什么？"时调用。
+      tags:
+        - Achievement
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: 成就 ID（如 "distance_42", "env_rain"）
+          schema:
+            type: string
+      responses:
+        "200":
+          description: 成就详情
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AchievementDetailResponse"
+
+components:
+  schemas:
+    StartWalkResponse:
+      type: object
+      required: [success, walk_id, start_time, ai_summary, deep_link_url]
+      properties:
+        success:
+          type: boolean
+        walk_id:
+          type: string
+          description: 遛狗会话唯一标识
+        start_time:
+          type: string
+          format: date-time
+        ai_summary:
+          type: string
+          description: AI 可读的自然语言总结
+        deep_link_url:
+          type: string
+          description: 唤起 App 对应页面的 URL
+
+    StopWalkRequest:
+      type: object
+      properties:
+        mood:
+          type: string
+          enum: [happy, normal, tired, excited]
+          description: 遛狗结束后的心情评价（可选，默认 happy）
+
+    StopWalkResponse:
+      type: object
+      required: [success, walk_id, distance, duration_seconds, average_speed, bones_earned, new_achievements, ai_summary, deep_link_url]
+      properties:
+        success:
+          type: boolean
+        walk_id:
+          type: string
+        distance:
+          type: number
+          format: double
+          description: 遛狗距离（公里）
+        duration_seconds:
+          type: number
+          format: double
+          description: 遛狗时长（秒）
+        average_speed:
+          type: number
+          format: double
+          description: 平均速度（km/h）
+        bones_earned:
+          type: integer
+          description: 获得的骨头币数量
+        new_achievements:
+          type: array
+          items:
+            $ref: "#/components/schemas/AchievementResponse"
+          description: 本次遛狗新解锁的成就列表
+        ai_summary:
+          type: string
+        deep_link_url:
+          type: string
+
+    WalkStatusResponse:
+      type: object
+      required: [is_walking, ai_summary, deep_link_url]
+      properties:
+        is_walking:
+          type: boolean
+          description: 当前是否正在遛狗
+        distance:
+          type: number
+          format: double
+          nullable: true
+          description: 当前距离（仅遛狗中有值）
+        duration_seconds:
+          type: number
+          format: double
+          nullable: true
+        current_speed:
+          type: number
+          format: double
+          nullable: true
+          description: 当前速度 km/h
+        ai_summary:
+          type: string
+        deep_link_url:
+          type: string
+
+    TodayStatsResponse:
+      type: object
+      required: [total_distance, walk_count, total_duration_minutes, daily_goal_km, goal_progress, ai_summary, deep_link_url]
+      properties:
+        total_distance:
+          type: number
+          format: double
+          description: 今日总距离（公里）
+        walk_count:
+          type: integer
+          description: 今日遛狗次数
+        total_duration_minutes:
+          type: integer
+          description: 今日总时长（分钟）
+        daily_goal_km:
+          type: number
+          format: double
+          description: 每日目标距离（公里）
+        goal_progress:
+          type: number
+          format: double
+          description: 目标完成比例 (0.0~1.0)
+        ai_summary:
+          type: string
+        deep_link_url:
+          type: string
+
+    WalkHistoryResponse:
+      type: object
+      required: [records, total_count, ai_summary]
+      properties:
+        records:
+          type: array
+          items:
+            $ref: "#/components/schemas/WalkRecordResponse"
+        total_count:
+          type: integer
+          description: 历史记录总数
+        ai_summary:
+          type: string
+
+    WalkRecordResponse:
+      type: object
+      required: [id, date, time, distance, duration_minutes, mood, has_photo, has_diary, deep_link_url]
+      properties:
+        id:
+          type: string
+          format: uuid
+        date:
+          type: string
+          description: "格式：MM月dd日"
+        time:
+          type: string
+          description: "格式：HH:mm"
+        distance:
+          type: number
+          format: double
+        duration_minutes:
+          type: integer
+        mood:
+          type: string
+          enum: [happy, normal, tired, excited]
+        bones_earned:
+          type: integer
+          nullable: true
+        has_photo:
+          type: boolean
+        has_diary:
+          type: boolean
+        diary_content:
+          type: string
+          nullable: true
+          description: 日记全文（仅 has_diary 为 true 时有值）
+        deep_link_url:
+          type: string
+
+    GenerateDiaryRequest:
+      type: object
+      properties:
+        walk_record_id:
+          type: string
+          format: uuid
+          description: 关联的遛狗记录 ID（可选，指定后日记会保存到该记录）
+        distance_km:
+          type: number
+          format: double
+          description: 遛狗距离（公里）
+        duration_minutes:
+          type: integer
+          description: 遛狗时长（分钟）
+        weather_condition:
+          type: string
+          enum: [sunny, cloudy, rainy, snowy, foggy]
+          description: 天气状况（可选）
+        weather_temperature:
+          type: number
+          format: double
+          description: 温度（摄氏度，可选）
+        special_events:
+          type: array
+          items:
+            type: string
+          description: 特殊事件描述列表
+
+    GenerateDiaryResponse:
+      type: object
+      required: [success, diary_text, mood_score, generated_at, ai_summary, deep_link_url]
+      properties:
+        success:
+          type: boolean
+        walk_record_id:
+          type: string
+          nullable: true
+        diary_text:
+          type: string
+          description: AI 生成的日记全文（宠物第一人称）
+        mood_score:
+          type: integer
+          minimum: 1
+          maximum: 10
+          description: AI 判断的心情分数
+        weather_context:
+          type: string
+          nullable: true
+        generated_at:
+          type: string
+          format: date-time
+        ai_summary:
+          type: string
+        deep_link_url:
+          type: string
+
+    TodayDiaryResponse:
+      type: object
+      required: [has_diary, diaries, ai_summary, deep_link_url]
+      properties:
+        has_diary:
+          type: boolean
+          description: 今天是否有日记
+        diaries:
+          type: array
+          items:
+            $ref: "#/components/schemas/DiaryEntry"
+        ai_summary:
+          type: string
+        deep_link_url:
+          type: string
+
+    DiaryEntry:
+      type: object
+      required: [walk_record_id, date, time, diary_text, distance_km, duration_minutes, mood, deep_link_url]
+      properties:
+        walk_record_id:
+          type: string
+          format: uuid
+        date:
+          type: string
+        time:
+          type: string
+        diary_text:
+          type: string
+        distance_km:
+          type: number
+          format: double
+        duration_minutes:
+          type: integer
+        mood:
+          type: string
+        deep_link_url:
+          type: string
+
+    AchievementResponse:
+      type: object
+      required: [id, name, description, category, rarity, reward_bones, is_unlocked, deep_link_url]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+          description: 成就名称（如"全马选手"）
+        description:
+          type: string
+          description: 成就描述
+        category:
+          type: string
+          description: 成就类别（里程达人/坚持不懈/连续打卡/景点打卡/速度挑战/天气达人/特殊成就）
+        rarity:
+          type: string
+          enum: [普通, 稀有, 史诗, 传说]
+        reward_bones:
+          type: integer
+          description: 奖励骨头币
+        is_unlocked:
+          type: boolean
+        deep_link_url:
+          type: string
+          description: "格式：petwalk://achievement/{id}"
+
+    AchievementDetailResponse:
+      type: object
+      required: [id, name, description, category, rarity, reward_bones, is_unlocked, is_secret, is_hint_revealed, progress_current, progress_target, progress_percent, deep_link_url]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        category:
+          type: string
+        rarity:
+          type: string
+          enum: [普通, 稀有, 史诗, 传说]
+        reward_bones:
+          type: integer
+        is_unlocked:
+          type: boolean
+        is_secret:
+          type: boolean
+          description: 是否为隐藏成就
+        is_hint_revealed:
+          type: boolean
+          description: 是否已购买线索揭示
+        progress_current:
+          type: integer
+          description: 当前进度值
+        progress_target:
+          type: integer
+          description: 目标值
+        progress_percent:
+          type: number
+          format: double
+          description: 完成百分比 (0-100)
+        deep_link_url:
+          type: string
+
+    AchievementOverviewResponse:
+      type: object
+      required: [total_count, unlocked_count, progress_percent, total_bones, current_streak, categories, ai_summary, deep_link_url]
+      properties:
+        total_count:
+          type: integer
+          description: 成就总数
+        unlocked_count:
+          type: integer
+          description: 已解锁数量
+        progress_percent:
+          type: number
+          format: double
+          description: 完成百分比
+        total_bones:
+          type: integer
+          description: 当前骨头币余额
+        current_streak:
+          type: integer
+          description: 当前连续打卡天数
+        categories:
+          type: array
+          items:
+            $ref: "#/components/schemas/CategoryProgress"
+        ai_summary:
+          type: string
+        deep_link_url:
+          type: string
+
+    CategoryProgress:
+      type: object
+      required: [category, unlocked, total, deep_link_url]
+      properties:
+        category:
+          type: string
+          description: 类别名称
+        unlocked:
+          type: integer
+        total:
+          type: integer
+        deep_link_url:
+          type: string
+
+    RecentAchievementsResponse:
+      type: object
+      required: [achievements, ai_summary, deep_link_url]
+      properties:
+        achievements:
+          type: array
+          items:
+            $ref: "#/components/schemas/AchievementDetailResponse"
+        ai_summary:
+          type: string
+        deep_link_url:
+          type: string
+
+    AchievementSuggestionsResponse:
+      type: object
+      required: [suggestions, ai_summary, deep_link_url]
+      properties:
+        suggestions:
+          type: array
+          items:
+            $ref: "#/components/schemas/AchievementSuggestion"
+          description: 推荐的成就列表（含接近完成、天气匹配、时间匹配）
+        ai_summary:
+          type: string
+        deep_link_url:
+          type: string
+
+    AchievementSuggestion:
+      type: object
+      required: [achievement, reason, difficulty]
+      properties:
+        achievement:
+          $ref: "#/components/schemas/AchievementDetailResponse"
+        reason:
+          type: string
+          description: 推荐原因（自然语言，如"再需要5公里即可达成！"）
+        difficulty:
+          type: string
+          enum: [容易, 中等, 困难, 看运气]
+          description: 预估难度

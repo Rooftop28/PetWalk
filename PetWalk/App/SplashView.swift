@@ -73,33 +73,10 @@ struct SplashView: View {
                 
                 Spacer()
                 
-                // 加载进度区域
+                // 加载动画区域
                 VStack(spacing: 15) {
-                    // 进度条
-                    GeometryReader { geometry in
-                        ZStack(alignment: .leading) {
-                            // 背景轨道
-                            Capsule()
-                                .fill(Color.appGreenMain.opacity(0.2))
-                                .frame(height: 8)
-                            
-                            // 进度填充
-                            Capsule()
-                                .fill(
-                                    LinearGradient(
-                                        colors: [Color.appGreenMain, Color.appGreenMain.opacity(0.8)],
-                                        startPoint: .leading,
-                                        endPoint: .trailing
-                                    )
-                                )
-                                .frame(width: geometry.size.width * initializer.progress, height: 8)
-                                .animation(.easeInOut(duration: 0.3), value: initializer.progress)
-                        }
-                    }
-                    .frame(height: 8)
-                    .frame(maxWidth: 200)
+                    LemniscateBloomLoader()
                     
-                    // 状态文字
                     Text(initializer.statusText)
                         .font(.system(size: 14, weight: .medium))
                         .foregroundColor(.appBrown.opacity(0.6))
@@ -172,6 +149,75 @@ struct PawPrint: Identifiable {
     let size: CGFloat
     let rotation: Double
     let opacity: Double
+}
+
+// MARK: - Lemniscate Bloom Loader (∞ 形加载动画)
+
+struct LemniscateBloomLoader: View {
+    private let progressDuration: TimeInterval = 5.6
+    private let pulseDuration: TimeInterval = 5.0
+    
+    var body: some View {
+        TimelineView(.animation) { timeline in
+            let now = timeline.date.timeIntervalSinceReferenceDate
+            let progress = (now.truncatingRemainder(dividingBy: progressDuration)) / progressDuration
+            let pulse = (now.truncatingRemainder(dividingBy: pulseDuration)) / pulseDuration
+            
+            Canvas { context, size in
+                let baseA: CGFloat = 20.0
+                let boost: CGFloat = 7.0
+                let particleCount = 70
+                let trailSpan: CGFloat = 0.4
+                let TWO_PI = CGFloat.pi * 2
+                
+                let pulseAngle = CGFloat(pulse) * TWO_PI + 0.55
+                let detailScale = 0.52 + ((sin(pulseAngle) + 1.0) / 2.0) * 0.48
+                let a = baseA + detailScale * boost
+                let scale = size.width / 100.0
+                let center = CGPoint(x: 50 * scale, y: 50 * scale)
+                
+                var path = Path()
+                for i in 0...480 {
+                    let t = CGFloat(i) / 480.0 * TWO_PI
+                    let denom = 1.0 + pow(sin(t), 2)
+                    let x = center.x + (a * cos(t) * scale) / denom
+                    let y = center.y + (a * sin(t) * cos(t) * scale) / denom
+                    if i == 0 {
+                        path.move(to: CGPoint(x: x, y: y))
+                    } else {
+                        path.addLine(to: CGPoint(x: x, y: y))
+                    }
+                }
+                
+                context.stroke(
+                    path,
+                    with: .color(Color.appGreenMain.opacity(0.15)),
+                    style: StrokeStyle(lineWidth: 4.8, lineCap: .round)
+                )
+                
+                for i in 0..<particleCount {
+                    let tailOffset = CGFloat(i) / CGFloat(particleCount - 1)
+                    var p = (CGFloat(progress) - tailOffset * trailSpan).truncatingRemainder(dividingBy: 1.0)
+                    if p < 0 { p += 1.0 }
+                    
+                    let t = p * TWO_PI
+                    let denom = 1.0 + pow(sin(t), 2)
+                    let px = center.x + (a * cos(t) * scale) / denom
+                    let py = center.y + (a * sin(t) * cos(t) * scale) / denom
+                    
+                    let fade = pow(1.0 - tailOffset, 0.56)
+                    let radius = 0.9 + fade * 2.7
+                    
+                    context.fill(
+                        Path(ellipseIn: CGRect(x: px - radius, y: py - radius, width: radius * 2, height: radius * 2)),
+                        with: .color(Color.appGreenMain.opacity(0.06 + fade * 0.94))
+                    )
+                }
+            }
+        }
+        .aspectRatio(1, contentMode: .fit)
+        .frame(width: 120, height: 120)
+    }
 }
 
 // MARK: - 预览
