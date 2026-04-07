@@ -90,7 +90,7 @@ struct HomeView: View {
     // 是否显示奖励商店页
     @State private var showShop = false
     
-    // 是否显示头像编辑器
+    // 是否显示头像编辑器 (V2: enableAvatar)
     @State private var showAvatarCreator = false
     
     // 遛狗开始时间（用于成就检测）
@@ -99,10 +99,10 @@ struct HomeView: View {
     // 遛狗会话数据（用于传递给结算页）
     @State private var walkSessionData: WalkSessionData?
     
-    // 头像管理器
+    // 头像管理器 (V2: enableAvatar)
     @ObservedObject private var avatarManager = AvatarManager.shared
     
-    // 直播管理器 (新增)
+    // 直播管理器 (V2: enableLiveWalk)
     @StateObject private var liveManager = LiveSessionManager.shared
     @State private var showLiveMonitor = false
     
@@ -148,10 +148,12 @@ struct HomeView: View {
         .sheet(isPresented: $showShop) {
             RewardShopView()  // 替换为奖励商店
         }
-        // 弹出云遛狗监控页
+        // 弹出云遛狗监控页 (V2: enableLiveWalk)
         .sheet(isPresented: $showLiveMonitor) {
-            LiveMonitorView()
-                .presentationDragIndicator(.visible) // 显示下拉指示条
+            if FeatureFlags.enableLiveWalk {
+                LiveMonitorView()
+                    .presentationDragIndicator(.visible)
+            }
         }
 
     }
@@ -257,20 +259,22 @@ struct HomeView: View {
                             .id(currentMood)
                     }
                     
-                    PhotosPicker(selection: $selectedAvatarItem, matching: .images) {
-                        UserAvatarView(
-                            onTap: nil,
-                            avatarSize: 70,
-                            showTitle: true
-                        )
-                        .contentShape(Rectangle())
+                    if FeatureFlags.enableAvatar {
+                        PhotosPicker(selection: $selectedAvatarItem, matching: .images) {
+                            UserAvatarView(
+                                onTap: nil,
+                                avatarSize: 70,
+                                showTitle: true
+                            )
+                            .contentShape(Rectangle())
+                        }
+                        .offset(x: 120, y: 80)
+                        .onChange(of: selectedAvatarItem) { _, newItem in
+                            processAvatarSelection(newItem)
+                        }
+                        .opacity(isDogVisible ? 1 : 0)
+                        .animation(.easeIn.delay(0.8), value: isDogVisible)
                     }
-                    .offset(x: 120, y: 80)
-                    .onChange(of: selectedAvatarItem) { _, newItem in
-                        processAvatarSelection(newItem)
-                    }
-                    .opacity(isDogVisible ? 1 : 0)
-                    .animation(.easeIn.delay(0.8), value: isDogVisible)
                     
                     SpeechBubbleView(text: currentMood.dialogue.text)
                         .offset(x: 50, y: -140)
@@ -351,60 +355,61 @@ struct HomeView: View {
             
             // 2. 悬浮数据面板
             VStack(spacing: 20) {
-                // 直播控制栏 (新增)
-                if !liveManager.isBroadcasting {
-                    Button(action: {
-                        liveManager.startBroadcast()
-                    }) {
-                        HStack {
-                            Image(systemName: "antenna.radiowaves.left.and.right")
-                            Text("开启直播")
-                        }
-                        .font(.caption)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 8)
-                        .glassButton()
-                    }
-                    .padding(.top, -10)
-                } else {
-                    HStack(spacing: 8) {
-                        Circle()
-                            .fill(Color.red)
-                            .frame(width: 8, height: 8)
-                            .opacity(isAnimating ? 1 : 0.5)
-                            .animation(.easeInOut(duration: 0.8).repeatForever(), value: isAnimating)
-                        
-                        Text("直播中: \(liveManager.currentRoomCode ?? "Error")")
-                            .font(.system(size: 14, weight: .bold, design: .monospaced))
-                            .foregroundColor(.white)
-                        
-                        // 复制按钮
+                // 直播控制栏 (V2: enableLiveWalk)
+                if FeatureFlags.enableLiveWalk {
+                    if !liveManager.isBroadcasting {
                         Button(action: {
-                            if let code = liveManager.currentRoomCode {
-                                UIPasteboard.general.string = code
+                            liveManager.startBroadcast()
+                        }) {
+                            HStack {
+                                Image(systemName: "antenna.radiowaves.left.and.right")
+                                Text("开启直播")
                             }
-                        }) {
-                            Image(systemName: "doc.on.doc")
-                                .font(.caption)
-                                .foregroundColor(.white.opacity(0.8))
+                            .font(.caption)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 8)
+                            .glassButton()
                         }
-                        
-                        Spacer()
-                        
-                        Button(action: {
-                            liveManager.stopBroadcast()
-                        }) {
-                            Image(systemName: "powersleep")
+                        .padding(.top, -10)
+                    } else {
+                        HStack(spacing: 8) {
+                            Circle()
+                                .fill(Color.red)
+                                .frame(width: 8, height: 8)
+                                .opacity(isAnimating ? 1 : 0.5)
+                                .animation(.easeInOut(duration: 0.8).repeatForever(), value: isAnimating)
+                            
+                            Text("直播中: \(liveManager.currentRoomCode ?? "Error")")
+                                .font(.system(size: 14, weight: .bold, design: .monospaced))
                                 .foregroundColor(.white)
-                                .padding(4)
-                                .background(Color.white.opacity(0.2))
-                                .clipShape(Circle())
+                            
+                            Button(action: {
+                                if let code = liveManager.currentRoomCode {
+                                    UIPasteboard.general.string = code
+                                }
+                            }) {
+                                Image(systemName: "doc.on.doc")
+                                    .font(.caption)
+                                    .foregroundColor(.white.opacity(0.8))
+                            }
+                            
+                            Spacer()
+                            
+                            Button(action: {
+                                liveManager.stopBroadcast()
+                            }) {
+                                Image(systemName: "powersleep")
+                                    .foregroundColor(.white)
+                                    .padding(4)
+                                    .background(Color.white.opacity(0.2))
+                                    .clipShape(Circle())
+                            }
                         }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                        .glassTinted(.appGreenMain, cornerRadius: 20)
+                        .padding(.top, -20)
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 8)
-                    .glassTinted(.appGreenMain, cornerRadius: 20)
-                    .padding(.top, -20)
                 }
                 
                 HStack(spacing: 40) {
@@ -491,21 +496,26 @@ struct HomeView: View {
                     Text("GO! 出发遛弯")
                 }
                 .font(.system(size: 20, weight: .bold, design: .rounded))
-                .foregroundColor(.white)
+                .foregroundColor(.appBrown)
                 .frame(maxWidth: .infinity)
                 .frame(height: 60)
-                .primaryActionButton()
+                .background(Color.white)
+                .clipShape(Capsule())
+                .shadow(color: .black.opacity(0.03), radius: 1, x: 0, y: 1)
+                .shadow(color: .black.opacity(0.08), radius: 16, x: 0, y: 6)
             }
             .padding(.horizontal, 50)
             
-            // 云遛狗入口 (新增)
-            Button(action: { showLiveMonitor = true }) {
-                HStack {
-                    Image(systemName: "cloud.fill")
-                    Text("加入云遛狗")
+            // 云遛狗入口 (V2: enableLiveWalk)
+            if FeatureFlags.enableLiveWalk {
+                Button(action: { showLiveMonitor = true }) {
+                    HStack {
+                        Image(systemName: "cloud.fill")
+                        Text("加入云遛狗")
+                    }
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(.appBrown.opacity(0.6))
                 }
-                .font(.system(size: 14, weight: .medium))
-                .foregroundColor(.appBrown.opacity(0.6))
             }
         }
         .padding(.bottom, 30)

@@ -39,13 +39,15 @@ struct AchievementView: View {
                         .foregroundColor(.appBrown)
                     Spacer()
                     
-                    // 排行榜按钮
-                    Button {
-                        showLeaderboard = true
-                    } label: {
-                        Image(systemName: "chart.bar.fill")
-                            .font(.system(size: 22))
-                            .foregroundColor(.appGreenMain)
+                    // 排行榜按钮 (V2: enableLeaderboard)
+                    if FeatureFlags.enableLeaderboard {
+                        Button {
+                            showLeaderboard = true
+                        } label: {
+                            Image(systemName: "chart.bar.fill")
+                                .font(.system(size: 22))
+                                .foregroundColor(.appGreenMain)
+                        }
                     }
                 }
                 .padding(.horizontal, 20)
@@ -93,7 +95,9 @@ struct AchievementView: View {
             .presentationDetents([.fraction(0.7)])
         }
         .sheet(isPresented: $showLeaderboard) {
-            LeaderboardView()
+            if FeatureFlags.enableLeaderboard {
+                LeaderboardView()
+            }
         }
     }
     
@@ -184,9 +188,13 @@ struct CategoryTab: View {
             .foregroundColor(isSelected ? .white : .appBrown)
             .padding(.horizontal, 16)
             .padding(.vertical, 10)
-            .background(isSelected ? category.color : Color.white)
+            .background(
+                isSelected
+                    ? AnyShapeStyle(category.color)
+                    : AnyShapeStyle(.ultraThinMaterial)
+            )
             .clipShape(Capsule())
-            .shadow(color: isSelected ? category.color.opacity(0.3) : .black.opacity(0.05), radius: 5)
+            .shadow(color: .black.opacity(0.04), radius: 10, x: 0, y: 4)
         }
     }
 }
@@ -215,25 +223,25 @@ struct AchievementCard: View {
     
     var body: some View {
         ZStack {
-            // 主内容
             mainContent
                 .blur(radius: shouldBlur ? 8 : 0)
             
-            // 隐藏成就遮罩层
             if shouldBlur {
                 hiddenOverlay
             }
             
-            // 已揭示线索但未解锁的边框
             if isHintRevealed && !isUnlocked {
-                RoundedRectangle(cornerRadius: 15)
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
                     .strokeBorder(
                         Color.yellow,
                         style: StrokeStyle(lineWidth: 2, dash: [8, 4])
                     )
             }
         }
-        .glassCardLight(cornerRadius: 16)
+        .background(Color.white)
+        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .shadow(color: .black.opacity(0.03), radius: 1, x: 0, y: 1)
+        .shadow(color: .black.opacity(0.08), radius: 16, x: 0, y: 6)
     }
     
     // MARK: - 主内容
@@ -314,15 +322,13 @@ struct AchievementCard: View {
             }
         }
         .padding()
-        .background(Color.white)
         .opacity(isUnlocked ? 1.0 : 0.8)
     }
     
     // MARK: - 隐藏成就遮罩
     private var hiddenOverlay: some View {
         ZStack {
-            // 毛玻璃背景
-            RoundedRectangle(cornerRadius: 15)
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
                 .fill(.ultraThinMaterial)
             
             // 锁图标和提示

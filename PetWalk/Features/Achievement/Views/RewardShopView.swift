@@ -12,8 +12,8 @@ struct RewardShopView: View {
     @ObservedObject var themeManager = ThemeManager.shared
     @Environment(\.dismiss) var dismiss
     
-    // 选中的 Tab
-    @State private var selectedTab: ShopTab = .titles
+    // 选中的 Tab（默认选中可见 Tab 列表中的第一个）
+    @State private var selectedTab: ShopTab = ShopTab.visibleTabs.first ?? .themes
     
     // 购买/装备反馈
     @State private var showFeedback = false
@@ -31,6 +31,15 @@ struct RewardShopView: View {
             case .themes: return "paintpalette.fill"
             case .hints: return "lightbulb.fill"
             }
+        }
+        
+        /// V1 可见的 Tab
+        static var visibleTabs: [ShopTab] {
+            var tabs: [ShopTab] = []
+            if FeatureFlags.enableTitleSystem { tabs.append(.titles) }
+            tabs.append(.themes)
+            tabs.append(.hints)
+            return tabs
         }
     }
     
@@ -126,7 +135,7 @@ struct RewardShopView: View {
     // MARK: - Tab Bar
     var shopTabBar: some View {
         HStack(spacing: 0) {
-            ForEach(ShopTab.allCases, id: \.self) { tab in
+            ForEach(ShopTab.visibleTabs, id: \.self) { tab in
                 Button(action: {
                     withAnimation(.spring(response: 0.3)) {
                         selectedTab = tab

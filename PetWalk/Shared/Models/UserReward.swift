@@ -107,11 +107,11 @@ struct AppTheme: Identifiable, Codable, Hashable {
     static let allThemes: [AppTheme] = [
         AppTheme(
             id: "theme_default",
-            name: "默认奶油色",
-            description: "温暖舒适的默认配色。",
+            name: "默认纯白",
+            description: "简洁明亮的默认配色。",
             price: 0,
             iconSymbol: "paintpalette.fill",
-            backgroundHex: "FFF9F0",
+            backgroundHex: "FFFFFF",
             primaryHex: "8BC34A",
             accentHex: "4A3021",
             specialEffectType: nil,

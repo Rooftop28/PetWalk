@@ -586,16 +586,19 @@ struct WalkSummaryView: View {
         // 3. 存入 DataManager
         dataManager.addRecord(record)
         
-        // 4. 触发云同步（成就数据）
+        // 4. 触发云同步（V2: enableCloudSync / enableLeaderboard）
         Task {
-            await CloudSyncManager.shared.uploadToCloud()
+            if FeatureFlags.enableCloudSync {
+                await CloudSyncManager.shared.uploadToCloud()
+            }
             
-            // 5. 更新排行榜数据
-            let updatedUserData = dataManager.userData
-            await SupabaseLeaderboardManager.shared.submitUserData(
-                totalDistance: updatedUserData.totalDistance,
-                totalWalks: updatedUserData.totalWalks
-            )
+            if FeatureFlags.enableLeaderboard {
+                let updatedUserData = dataManager.userData
+                await SupabaseLeaderboardManager.shared.submitUserData(
+                    totalDistance: updatedUserData.totalDistance,
+                    totalWalks: updatedUserData.totalWalks
+                )
+            }
         }
         
         // 6. 关闭页面

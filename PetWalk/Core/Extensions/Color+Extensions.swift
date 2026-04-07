@@ -90,7 +90,7 @@ extension Color {
 // MARK: - Liquid Glass 样式扩展
 
 extension View {
-    /// 主要玻璃卡片 (Island)：带 ambient 阴影的浮动卡片
+    /// 主要玻璃卡片 (Island)：带增强阴影的浮动卡片
     func glassCard(cornerRadius: CGFloat = 24) -> some View {
         self
             .background(
@@ -98,7 +98,8 @@ extension View {
                     .fill(.ultraThinMaterial)
             )
             .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-            .shadow(color: .black.opacity(0.04), radius: 10, x: 0, y: 4)
+            .shadow(color: .black.opacity(0.03), radius: 1, x: 0, y: 1)
+            .shadow(color: .black.opacity(0.08), radius: 16, x: 0, y: 6)
     }
     
     /// 次要玻璃卡片：更轻的 Island
@@ -109,7 +110,8 @@ extension View {
                     .fill(.thinMaterial)
             )
             .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-            .shadow(color: .black.opacity(0.04), radius: 10, x: 0, y: 4)
+            .shadow(color: .black.opacity(0.03), radius: 1, x: 0, y: 1)
+            .shadow(color: .black.opacity(0.06), radius: 12, x: 0, y: 4)
     }
     
     /// 浮动按钮：胶囊形毛玻璃
@@ -120,7 +122,8 @@ extension View {
                     .fill(.ultraThinMaterial)
             )
             .clipShape(Capsule())
-            .shadow(color: .black.opacity(0.04), radius: 10, x: 0, y: 4)
+            .shadow(color: .black.opacity(0.03), radius: 1, x: 0, y: 1)
+            .shadow(color: .black.opacity(0.08), radius: 12, x: 0, y: 4)
     }
     
     /// 圆形图标按钮
@@ -131,7 +134,8 @@ extension View {
                     .fill(.ultraThinMaterial)
             )
             .clipShape(Circle())
-            .shadow(color: .black.opacity(0.04), radius: 10, x: 0, y: 4)
+            .shadow(color: .black.opacity(0.03), radius: 1, x: 0, y: 1)
+            .shadow(color: .black.opacity(0.08), radius: 12, x: 0, y: 4)
     }
     
     /// 带品牌色调的 Island
@@ -146,7 +150,8 @@ extension View {
                     )
             )
             .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-            .shadow(color: .black.opacity(0.04), radius: 10, x: 0, y: 4)
+            .shadow(color: .black.opacity(0.03), radius: 1, x: 0, y: 1)
+            .shadow(color: color.opacity(0.12), radius: 12, x: 0, y: 4)
     }
     
     /// CTA 按钮：主操作按钮
@@ -157,6 +162,7 @@ extension View {
                     .fill(LinearGradient(colors: gradient, startPoint: .leading, endPoint: .trailing))
             )
             .clipShape(Capsule())
-            .shadow(color: gradient.first?.opacity(0.25) ?? .clear, radius: 10, x: 0, y: 4)
+            .shadow(color: .black.opacity(0.04), radius: 2, x: 0, y: 1)
+            .shadow(color: gradient.first?.opacity(0.3) ?? .clear, radius: 12, x: 0, y: 6)
     }
 }

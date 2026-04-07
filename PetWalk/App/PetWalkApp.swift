@@ -17,7 +17,7 @@ struct PetWalkApp: App {
     // 启动初始化管理器
     @StateObject private var initializer = AppInitializer.shared
     
-    // Game Center 管理器
+    // Game Center 管理器 (V2: enableGameCenter)
     @ObservedObject private var gameCenter = GameCenterManager.shared
     
     // 观察 DataManager 以检查 onboarding 状态
@@ -39,8 +39,10 @@ struct PetWalkApp: App {
                             .environment(\.themeManager, themeManager)
                             .transition(.opacity)
                             .onAppear {
-                                // 初始化 Game Center
-                                gameCenter.authenticate()
+                                // 初始化 Game Center (V2: enableGameCenter)
+                                if FeatureFlags.enableGameCenter {
+                                    gameCenter.authenticate()
+                                }
                                 
                                 // 清理可能的僵尸活动
                                 Task {

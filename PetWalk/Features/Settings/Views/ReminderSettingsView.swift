@@ -349,70 +349,70 @@ struct SettingsView: View {
                 Color.appBackground.ignoresSafeArea()
                 
                 List {
-                    // 账号信息
-                    Section {
-                        // 用户 ID
-                        HStack {
-                            Image(systemName: "person.badge.key.fill")
-                                .font(.system(size: 18))
-                                .foregroundColor(.blue)
-                                .frame(width: 30, height: 30)
-                                .background(Color.blue.opacity(0.15))
-                                .clipShape(RoundedRectangle(cornerRadius: 6))
-                            
-                            Text("用户 ID")
-                            
-                            Spacer()
-                            
-                            if let userId = authService.currentUserId {
-                                Text(userId.prefix(8) + "...")
-                                    .font(.system(.caption, design: .monospaced))
-                                    .foregroundColor(.gray)
-                                
-                                Button {
-                                    UIPasteboard.general.string = userId
-                                    showCopiedToast = true
-                                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                                        showCopiedToast = false
-                                    }
-                                } label: {
-                                    Image(systemName: "doc.on.doc")
-                                        .font(.caption)
-                                        .foregroundColor(.appGreenMain)
-                                }
-                            } else {
-                                Text("未登录")
-                                    .font(.caption)
-                                    .foregroundColor(.red)
-                            }
-                        }
-                        
-                        // 恢复账号
-                        Button {
-                            showRestoreSheet = true
-                        } label: {
+                    // 账号信息 (V2: enableCloudSync)
+                    if FeatureFlags.enableCloudSync {
+                        Section {
                             HStack {
-                                Image(systemName: "arrow.down.circle.fill")
+                                Image(systemName: "person.badge.key.fill")
                                     .font(.system(size: 18))
-                                    .foregroundColor(.green)
+                                    .foregroundColor(.blue)
                                     .frame(width: 30, height: 30)
-                                    .background(Color.green.opacity(0.15))
+                                    .background(Color.blue.opacity(0.15))
                                     .clipShape(RoundedRectangle(cornerRadius: 6))
                                 
-                                Text("从其他设备恢复账号")
-                                    .foregroundColor(.primary)
+                                Text("用户 ID")
                                 
                                 Spacer()
                                 
-                                Image(systemName: "chevron.right")
-                                    .font(.caption)
-                                    .foregroundColor(.gray.opacity(0.5))
+                                if let userId = authService.currentUserId {
+                                    Text(userId.prefix(8) + "...")
+                                        .font(.system(.caption, design: .monospaced))
+                                        .foregroundColor(.gray)
+                                    
+                                    Button {
+                                        UIPasteboard.general.string = userId
+                                        showCopiedToast = true
+                                        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                                            showCopiedToast = false
+                                        }
+                                    } label: {
+                                        Image(systemName: "doc.on.doc")
+                                            .font(.caption)
+                                            .foregroundColor(.appGreenMain)
+                                    }
+                                } else {
+                                    Text("未登录")
+                                        .font(.caption)
+                                        .foregroundColor(.red)
+                                }
                             }
+                            
+                            Button {
+                                showRestoreSheet = true
+                            } label: {
+                                HStack {
+                                    Image(systemName: "arrow.down.circle.fill")
+                                        .font(.system(size: 18))
+                                        .foregroundColor(.green)
+                                        .frame(width: 30, height: 30)
+                                        .background(Color.green.opacity(0.15))
+                                        .clipShape(RoundedRectangle(cornerRadius: 6))
+                                    
+                                    Text("从其他设备恢复账号")
+                                        .foregroundColor(.primary)
+                                    
+                                    Spacer()
+                                    
+                                    Image(systemName: "chevron.right")
+                                        .font(.caption)
+                                        .foregroundColor(.gray.opacity(0.5))
+                                }
+                            }
+                        } header: {
+                            Text("账号")
+                        } footer: {
+                            Text("用户 ID 用于数据同步。跨设备（包括安卓）恢复数据时，请复制 ID 并在新设备上输入。")
                         }
-                    } header: {
-                        Text("账号")
-                    } footer: {
-                        Text("用户 ID 用于数据同步。跨设备（包括安卓）恢复数据时，请复制 ID 并在新设备上输入。")
                     }
                     
                     // 通知设置
@@ -465,16 +465,18 @@ struct SettingsView: View {
                             )
                         }
                         
-                        // 狗叫声录制
-                        Button {
-                            showVoiceRecording = true
-                        } label: {
-                            SettingsRow(
-                                icon: "waveform.circle.fill",
-                                iconColor: .pink,
-                                title: "录制叫声",
-                                subtitle: voiceManager.hasRecordedVoice ? "已录制" : "未录制"
-                            )
+                        // 狗叫声录制 (V2: enableVoiceRecording)
+                        if FeatureFlags.enableVoiceRecording {
+                            Button {
+                                showVoiceRecording = true
+                            } label: {
+                                SettingsRow(
+                                    icon: "waveform.circle.fill",
+                                    iconColor: .pink,
+                                    title: "录制叫声",
+                                    subtitle: voiceManager.hasRecordedVoice ? "已录制" : "未录制"
+                                )
+                            }
                         }
                     } header: {
                         Text("档案管理")
@@ -514,23 +516,25 @@ struct SettingsView: View {
                         Text("关闭后，遛狗结束时可以手动写日志记录")
                     }
                     
-                    // 数据管理
-                    Section {
-                        SettingsRow(
-                            icon: "icloud.fill",
-                            iconColor: .blue,
-                            title: "数据同步",
-                            subtitle: "iCloud"
-                        )
-                        
-                        SettingsRow(
-                            icon: "square.and.arrow.up.fill",
-                            iconColor: .green,
-                            title: "导出数据",
-                            subtitle: ""
-                        )
-                    } header: {
-                        Text("数据")
+                    // 数据管理 (V2: enableCloudSync)
+                    if FeatureFlags.enableCloudSync {
+                        Section {
+                            SettingsRow(
+                                icon: "icloud.fill",
+                                iconColor: .blue,
+                                title: "数据同步",
+                                subtitle: "iCloud"
+                            )
+                            
+                            SettingsRow(
+                                icon: "square.and.arrow.up.fill",
+                                iconColor: .green,
+                                title: "导出数据",
+                                subtitle: ""
+                            )
+                        } header: {
+                            Text("数据")
+                        }
                     }
                     
                     // 关于

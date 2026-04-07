@@ -73,8 +73,10 @@ class AppInitializer: ObservableObject {
     private func authenticateUser() async {
         updateStatus("正在登录...")
         
-        // 执行 Supabase 匿名登录 + Game Center 绑定
-        await AuthService.shared.checkIn()
+        // 执行 Supabase 匿名登录 + Game Center 绑定 (V2: enableCloudSync)
+        if FeatureFlags.enableCloudSync {
+            await AuthService.shared.checkIn()
+        }
         
         updateProgress(for: "auth")
         
@@ -93,8 +95,8 @@ class AppInitializer: ObservableObject {
         userDataLoaded = true
         updateProgress(for: "userData")
         
-        // 尝试从云端同步数据（如果已登录 Supabase）
-        if AuthService.shared.isAuthenticated {
+        // 尝试从云端同步数据 (V2: enableCloudSync)
+        if FeatureFlags.enableCloudSync && AuthService.shared.isAuthenticated {
             updateStatus("正在同步云端数据...")
             await CloudSyncManager.shared.sync()
         }
