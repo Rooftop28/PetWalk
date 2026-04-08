@@ -33,6 +33,9 @@ struct WalkSummaryView: View {
     // 动画
     @State private var isVisible = false
     
+    // 分级验证
+    @State private var walkTier: WalkTier = .invalid
+    
     // 游戏化奖励状态
     @State private var earnedBones: Int = 0
     @State private var unlockedAchievements: [Achievement] = []
@@ -56,7 +59,11 @@ struct WalkSummaryView: View {
         self.onFinish = onFinish
     }
     
+    @State private var showDiscardAlert = false
+    @State private var showSaveConfirmAlert = false
+    
     var body: some View {
+        NavigationView {
         ZStack {
             Color.appBackground.ignoresSafeArea()
             
@@ -66,7 +73,7 @@ struct WalkSummaryView: View {
                     Text("遛弯完成！")
                         .font(.system(size: 34, weight: .heavy, design: .rounded))
                         .foregroundColor(.appBrown)
-                        .padding(.top, 40)
+                        .padding(.top, 20)
                     
                     // 2. 成绩卡片
                     HStack(spacing: 20) {
@@ -74,6 +81,40 @@ struct WalkSummaryView: View {
                         StatBox(title: "时长", value: formatDuration(duration), unit: "min")
                     }
                     .padding(.horizontal)
+                    
+                    // 2.3 分级提示 banner
+                    if walkTier == .invalid {
+                        HStack(spacing: 10) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .foregroundColor(.orange)
+                            Text("本次遛狗时长或距离不足，不会保存记录")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                        }
+                        .padding()
+                        .frame(maxWidth: .infinity)
+                        .background(Color.orange.opacity(0.12))
+                        .cornerRadius(12)
+                        .padding(.horizontal)
+                    } else if walkTier == .basicRecord {
+                        HStack(spacing: 10) {
+                            Image(systemName: "info.circle.fill")
+                                .foregroundColor(.blue)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("记录已保存，但未达到有效运动标准")
+                                    .font(.subheadline)
+                                    .fontWeight(.medium)
+                                Text("遛满10分钟+500米才能获得骨头币和成就进度")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                        .padding()
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color.blue.opacity(0.08))
+                        .cornerRadius(12)
+                        .padding(.horizontal)
+                    }
                     
                     // 2.5 奖励展示区 (骨头币 + 成就)
                     VStack(spacing: 15) {
@@ -246,17 +287,31 @@ struct WalkSummaryView: View {
                     
                     Spacer(minLength: 50)
                     
-                    // 5. 保存按钮
-                    Button(action: saveRecord) {
-                        Text("保存记录")
-                            .font(.system(size: 20, weight: .bold))
-                            .foregroundColor(.white)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 56)
-                            .primaryActionButton()
+                    // 5. 保存按钮（不满足基础记录层时隐藏保存，只显示离开按钮）
+                    if walkTier >= .basicRecord {
+                        Button(action: { showSaveConfirmAlert = true }) {
+                            Text("保存记录")
+                                .font(.system(size: 20, weight: .bold))
+                                .foregroundColor(.white)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 56)
+                                .primaryActionButton()
+                        }
+                        .padding(.horizontal)
+                        .padding(.bottom, 30)
+                    } else {
+                        Button(action: { onFinish() }) {
+                            Text("离开")
+                                .font(.system(size: 20, weight: .bold))
+                                .foregroundColor(.white)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 56)
+                                .background(Color.gray.opacity(0.5))
+                                .cornerRadius(16)
+                        }
+                        .padding(.horizontal)
+                        .padding(.bottom, 30)
                     }
-                    .padding(.horizontal)
-                    .padding(.bottom, 30)
                 }
             }
             
@@ -274,11 +329,48 @@ struct WalkSummaryView: View {
                 )
             }
         }
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarLeading) {
+                Button(action: { showDiscardAlert = true }) {
+                    Image(systemName: "chevron.left")
+                        .foregroundColor(.appBrown)
+                }
+            }
+            ToolbarItem(placement: .navigationBarTrailing) {
+                if walkTier >= .basicRecord {
+                    Button(action: { showSaveConfirmAlert = true }) {
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundColor(.appGreenMain)
+                    }
+                }
+            }
+        }
+        .alert(
+            walkTier == .invalid
+                ? "本次遛狗不满足记录条件，确定离开吗？"
+                : "返回本次记录不会保存，确定要返回吗？",
+            isPresented: $showDiscardAlert
+        ) {
+            Button("取消", role: .cancel) {}
+            Button("确定返回", role: .destructive) {
+                onFinish()
+            }
+        }
+        .alert("是否编辑完成？", isPresented: $showSaveConfirmAlert) {
+            Button("继续编辑", role: .cancel) {}
+            Button("保存") {
+                saveRecord()
+            }
+        }
+        .interactiveDismissDisabled()
+        }
+        .debugPageName("WalkSummaryView")
         .onAppear {
             calculateRewards()
             generateAiDiary()
             
-            // 播放狗叫声（如果有录制）
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                 VoiceRecordingManager.shared.playForNotification()
             }
@@ -474,61 +566,74 @@ struct WalkSummaryView: View {
         }
     }
     
-    // 计算奖励（骨头币 + 成就检测）
+    // 计算奖励（骨头币 + 成就检测），受分级限制
     private func calculateRewards() {
-        // 计算骨头币
+        let tier = WalkValidation.evaluateTier(for: sessionData)
+        self.walkTier = tier
+        
+        print("WalkSummaryView: 遛狗分级 = \(tier) (时长: \(Int(duration))秒, 距离: \(String(format: "%.3f", distance))km)")
+        
+        // Tier < activeExercise → 不发放骨头币，不计算成就
+        guard tier >= .activeExercise else {
+            withAnimation(.spring().delay(0.5)) {
+                self.earnedBones = 0
+                self.unlockedAchievements = []
+            }
+            return
+        }
+        
         let bones = GameSystem.shared.calculateBones(distanceKm: distance)
         
-        // 检测成就（预览模式，不更新统计数据）
-        // 使用完整的 sessionData 进行成就检测（包含天气、POI 等信息）
-        // 注意：这里创建临时副本用于预览，不修改实际数据
         var tempUserData = dataManager.userData
-        // 先手动模拟统计数据增加，以便正确检测成就
         tempUserData.totalWalks += 1
         tempUserData.totalDistance += sessionData.distance
         
         let achievements = AchievementManager.shared.checkAndUnlockAchievements(
             userData: &tempUserData,
             sessionData: sessionData,
-            updateStats: false  // 不再次更新统计，因为已经手动加过了
+            updateStats: false
         )
         
-        // 计算成就奖励的骨头币
         let achievementBones = achievements.reduce(0) { $0 + $1.rewardBones }
         
-        // 更新状态（带动画）
         withAnimation(.spring().delay(0.5)) {
             self.earnedBones = bones + achievementBones
             self.unlockedAchievements = achievements
         }
         
-        // 如果有成就解锁，稍后显示弹窗
         if !achievements.isEmpty {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
                 showAchievementPopup = true
             }
         }
         
-        // 打印调试信息
         if let weather = sessionData.weather {
             print("WalkSummaryView: 天气 - \(weather.condition), \(Int(weather.temperature))°C")
         }
         print("WalkSummaryView: 路过餐厅 \(sessionData.passedRestaurantCount) 家, 绕圈 \(sessionData.homeLoopCount) 次")
     }
     
-    // 保存逻辑
+    // 保存逻辑（受分级限制）
     private func saveRecord() {
-        // 更新 UserData (累加骨头币，成就已在 calculateRewards 中处理)
+        // Tier invalid → 不保存任何记录，直接关闭
+        guard walkTier >= .basicRecord else {
+            onFinish()
+            return
+        }
+        
         var currentUserData = dataManager.userData
-        currentUserData.totalBones += earnedBones
         currentUserData.lastWalkDate = Date()
         
-        // 正式检测并解锁成就（更新统计数据）
-        _ = AchievementManager.shared.checkAndUnlockAchievements(
-            userData: &currentUserData,
-            sessionData: sessionData,
-            updateStats: true  // 这是唯一一次更新统计数据
-        )
+        // 只有达到有效运动层才发放骨头币和计算成就
+        if walkTier >= .activeExercise {
+            currentUserData.totalBones += earnedBones
+            
+            _ = AchievementManager.shared.checkAndUnlockAchievements(
+                userData: &currentUserData,
+                sessionData: sessionData,
+                updateStats: true
+            )
+        }
         
         dataManager.updateUserData(currentUserData)
         
@@ -552,16 +657,13 @@ struct WalkSummaryView: View {
         let timeFormatter = DateFormatter()
         timeFormatter.dateFormat = "HH:mm"
         
-        // 根据设置决定保存 AI 日记还是主人日志
         let diaryContent: String?
         let diaryGeneratedAt: Date?
         
         if dataManager.userData.aiDiaryEnabled {
-            // AI 日记模式
             diaryContent = fullDiaryContent.isEmpty ? (aiDiaryContent.isEmpty ? nil : aiDiaryContent) : fullDiaryContent
             diaryGeneratedAt = (fullDiaryContent.isEmpty && aiDiaryContent.isEmpty) ? nil : Date()
         } else {
-            // 主人手写日志模式
             diaryContent = ownerNote.isEmpty ? nil : ownerNote
             diaryGeneratedAt = ownerNote.isEmpty ? nil : Date()
         }
@@ -571,13 +673,13 @@ struct WalkSummaryView: View {
             date: dateFormatter.string(from: now),
             time: timeFormatter.string(from: now),
             distance: distance,
-            duration: Int(duration / 60),
+            duration: max(1, Int(ceil(duration / 60))),
             mood: mood,
             imageName: imageName,
             timestamp: now,
             route: routeCoordinates,
-            itemsFound: nil, // 不再使用物品系统
-            bonesEarned: earnedBones,
+            itemsFound: nil,
+            bonesEarned: walkTier >= .activeExercise ? earnedBones : 0,
             isCloudWalk: false,
             aiDiary: diaryContent,
             aiDiaryGeneratedAt: diaryGeneratedAt
@@ -586,7 +688,7 @@ struct WalkSummaryView: View {
         // 3. 存入 DataManager
         dataManager.addRecord(record)
         
-        // 4. 触发云同步（V2: enableCloudSync / enableLeaderboard）
+        // 4. 触发云同步
         Task {
             if FeatureFlags.enableCloudSync {
                 await CloudSyncManager.shared.uploadToCloud()
@@ -601,7 +703,6 @@ struct WalkSummaryView: View {
             }
         }
         
-        // 6. 关闭页面
         onFinish()
     }
     

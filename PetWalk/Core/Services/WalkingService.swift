@@ -206,49 +206,58 @@ class WalkingService {
         currentWalkId = nil
         
         let mood = request.mood ?? "happy"
-        let bones = gameSystem.calculateBones(distanceKm: sessionData.distance)
+        let tier = WalkValidation.evaluateTier(for: sessionData)
         
-        // 检测成就
+        // 只有达到有效运动层才发放骨头币和检测成就
+        var bones = 0
+        var newAchievements: [Achievement] = []
         var userData = dataManager.userData
-        let newAchievements = achievementManager.checkAndUnlockAchievements(
-            userData: &userData,
-            sessionData: sessionData,
-            updateStats: true
-        )
         
-        // 发放奖励
+        if tier >= .activeExercise {
+            bones = gameSystem.calculateBones(distanceKm: sessionData.distance)
+            newAchievements = achievementManager.checkAndUnlockAchievements(
+                userData: &userData,
+                sessionData: sessionData,
+                updateStats: true
+            )
+        }
+        
         let totalBones = bones + newAchievements.reduce(0) { $0 + $1.rewardBones }
-        userData.totalBones += totalBones
+        if tier >= .activeExercise {
+            userData.totalBones += totalBones
+        }
         userData.lastWalkDate = Date()
         dataManager.updateUserData(userData)
         
-        // 保存遛狗记录
-        let now = Date()
-        let calendar = Calendar.current
-        let dateFormatter = DateFormatter()
-        dateFormatter.dateFormat = "MM月dd日"
-        let timeFormatter = DateFormatter()
-        timeFormatter.dateFormat = "HH:mm"
-        
-        let record = WalkRecord(
-            day: calendar.component(.day, from: now),
-            date: dateFormatter.string(from: now),
-            time: timeFormatter.string(from: now),
-            distance: sessionData.distance,
-            duration: Int(sessionData.duration / 60),
-            mood: mood,
-            imageName: nil,
-            timestamp: now,
-            route: walkManager.locationService.routeCoordinates.map {
-                RoutePoint(lat: $0.latitude, lon: $0.longitude)
-            },
-            itemsFound: nil,
-            bonesEarned: totalBones,
-            isCloudWalk: false,
-            aiDiary: nil,
-            aiDiaryGeneratedAt: nil
-        )
-        dataManager.addRecord(record)
+        // 只有达到基础记录层才保存记录
+        if tier >= .basicRecord {
+            let now = Date()
+            let calendar = Calendar.current
+            let dateFormatter = DateFormatter()
+            dateFormatter.dateFormat = "MM月dd日"
+            let timeFormatter = DateFormatter()
+            timeFormatter.dateFormat = "HH:mm"
+            
+            let record = WalkRecord(
+                day: calendar.component(.day, from: now),
+                date: dateFormatter.string(from: now),
+                time: timeFormatter.string(from: now),
+                distance: sessionData.distance,
+                duration: max(1, Int(ceil(sessionData.duration / 60))),
+                mood: mood,
+                imageName: nil,
+                timestamp: now,
+                route: walkManager.locationService.routeCoordinates.map {
+                    RoutePoint(lat: $0.latitude, lon: $0.longitude)
+                },
+                itemsFound: nil,
+                bonesEarned: tier >= .activeExercise ? totalBones : 0,
+                isCloudWalk: false,
+                aiDiary: nil,
+                aiDiaryGeneratedAt: nil
+            )
+            dataManager.addRecord(record)
+        }
         
         // 构建成就响应
         let achievementResponses = newAchievements.map { a in
@@ -267,12 +276,21 @@ class WalkingService {
         let petName = dataManager.userData.petName
         let distStr = String(format: "%.2f", sessionData.distance)
         let durMin = Int(sessionData.duration / 60)
-        var summary = "和\(petName)完成了\(distStr)公里、\(durMin)分钟的遛弯"
-        if !newAchievements.isEmpty {
-            let names = newAchievements.map { "「\($0.name)」" }.joined(separator: "、")
-            summary += "，还解锁了\(names)成就！"
-        } else {
-            summary += "，获得了\(totalBones)个骨头币。"
+        var summary: String
+        
+        switch tier {
+        case .invalid:
+            summary = "\(petName)遛了\(distStr)公里/\(durMin)分钟，未达到记录标准（需≥5分钟+200米），本次不计入历史。"
+        case .basicRecord:
+            summary = "\(petName)遛了\(distStr)公里/\(durMin)分钟，已记录但未达有效运动标准（需≥10分钟+500米），不发放骨头币。"
+        case .activeExercise:
+            summary = "和\(petName)完成了\(distStr)公里、\(durMin)分钟的遛弯"
+            if !newAchievements.isEmpty {
+                let names = newAchievements.map { "「\($0.name)」" }.joined(separator: "、")
+                summary += "，还解锁了\(names)成就！"
+            } else {
+                summary += "，获得了\(totalBones)个骨头币。"
+            }
         }
         
         return StopWalkResponse(
@@ -281,10 +299,10 @@ class WalkingService {
             distance: sessionData.distance,
             durationSeconds: sessionData.duration,
             averageSpeed: sessionData.averageSpeed,
-            bonesEarned: totalBones,
+            bonesEarned: tier >= .activeExercise ? totalBones : 0,
             newAchievements: achievementResponses,
             aiSummary: summary,
-            deepLinkURL: "petwalk://walk/summary/\(record.id.uuidString)"
+            deepLinkURL: "petwalk://walk/history"
         )
     }
     

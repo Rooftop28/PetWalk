@@ -19,18 +19,21 @@ struct MainTabView: View {
     var body: some View {
         TabView(selection: $router.selectedTab) {
             HomeView()
+                .debugPageName("HomeView")
                 .tabItem {
                     Label("陪伴", systemImage: "pawprint.fill")
                 }
                 .tag(Tab.home)
             
             HistoryView()
+                .debugPageName("HistoryView")
                 .tabItem {
                     Label("足迹", systemImage: "chart.bar.fill")
                 }
                 .tag(Tab.history)
             
             AchievementView()
+                .debugPageName("AchievementView")
                 .tabItem {
                     Label("成就", systemImage: "trophy.fill")
                 }

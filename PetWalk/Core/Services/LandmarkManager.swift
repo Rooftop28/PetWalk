@@ -39,10 +39,12 @@ class LandmarkManager: ObservableObject {
     
     // MARK: - 私有属性
     private let visitedKey = "visitedLandmarkIds"
-    private let locationVisitCountKey = "locationVisitCounts"  // 位置访问次数
+    private let locationVisitCountKey = "locationVisitCounts"
     
-    // 位置访问计数（用于"家门口的守护者"成就）
     private var locationVisitCounts: [String: Int] = [:]
+    
+    /// 当前正在停留的景点及进入时间（用于 Tier 3 停留时间门槛）
+    private var dwellingLandmark: (landmark: Landmark, entryTime: Date)?
     
     // MARK: - 初始化
     private init() {
@@ -93,27 +95,50 @@ class LandmarkManager: ObservableObject {
     // MARK: - 位置检测
     
     /// 检测当前位置是否在某个景点范围内
+    /// 需要在 POI 范围内停留 ≥3 分钟才算有效打卡（Tier 3 成就挑战层门槛）
     /// - Parameter location: 当前位置
-    /// - Returns: 如果进入新景点，返回该景点；否则返回 nil
+    /// - Returns: 如果达成有效打卡，返回该景点；否则返回 nil
     func checkLocation(_ location: CLLocation) -> Landmark? {
+        // 检查是否仍在当前停留的景点范围内
+        if let dwelling = dwellingLandmark {
+            let dist = location.distance(from: dwelling.landmark.coordinate)
+            if dist <= dwelling.landmark.radius {
+                // 仍在范围内，检查停留时长是否达标
+                let dwellTime = Date().timeIntervalSince(dwelling.entryTime)
+                if WalkValidation.meetsLandmarkDwellThreshold(dwellSeconds: dwellTime) {
+                    // 达到停留门槛，正式记录打卡
+                    let lm = dwelling.landmark
+                    dwellingLandmark = nil
+                    
+                    if !currentSessionVisits.contains(where: { $0.id == lm.id }) {
+                        currentSessionVisits.append(lm)
+                        
+                        if !visitedLandmarkIds.contains(lm.id) {
+                            visitedLandmarkIds.insert(lm.id)
+                            saveVisitedLandmarks()
+                            print("LandmarkManager: 有效打卡 - \(lm.name) (停留\(Int(dwellTime))秒)")
+                        }
+                        return lm
+                    }
+                }
+                return nil
+            } else {
+                // 离开了当前停留的景点范围，取消追踪
+                print("LandmarkManager: 离开景点范围 - \(dwelling.landmark.name)，未达停留门槛")
+                dwellingLandmark = nil
+            }
+        }
+        
+        // 扫描是否进入新的景点范围
         for landmark in landmarks {
             let distance = location.distance(from: landmark.coordinate)
             
-            // 在触发半径内
             if distance <= landmark.radius {
-                // 检查本次遛狗是否已经访问过
                 if !currentSessionVisits.contains(where: { $0.id == landmark.id }) {
-                    // 记录本次访问
-                    currentSessionVisits.append(landmark)
-                    
-                    // 如果是首次访问（历史上从未访问过）
-                    if !visitedLandmarkIds.contains(landmark.id) {
-                        visitedLandmarkIds.insert(landmark.id)
-                        saveVisitedLandmarks()
-                        print("LandmarkManager: 首次到访 - \(landmark.name)")
-                    }
-                    
-                    return landmark
+                    // 进入新景点范围，开始计时
+                    dwellingLandmark = (landmark: landmark, entryTime: Date())
+                    print("LandmarkManager: 进入景点范围 - \(landmark.name)，开始计时")
+                    return nil
                 }
             }
         }
@@ -145,11 +170,12 @@ class LandmarkManager: ObservableObject {
     /// 开始新的遛狗会话（清除本次访问记录）
     func startNewSession() {
         currentSessionVisits.removeAll()
+        dwellingLandmark = nil
     }
     
     /// 结束遛狗会话
     func endSession() {
-        // 会话结束时可以做一些统计
+        dwellingLandmark = nil
     }
     
     // MARK: - 统计数据

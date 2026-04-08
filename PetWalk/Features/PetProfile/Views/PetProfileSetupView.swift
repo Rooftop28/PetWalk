@@ -64,6 +64,7 @@ struct PetProfileSetupView: View {
                 HStack(spacing: 20) {
                     if currentStep > 0 {
                         Button {
+                            dismissKeyboard()
                             withAnimation {
                                 currentStep -= 1
                             }
@@ -80,6 +81,7 @@ struct PetProfileSetupView: View {
                     }
                     
                     Button {
+                        dismissKeyboard()
                         if currentStep < 3 {
                             withAnimation {
                                 currentStep += 1
@@ -108,6 +110,12 @@ struct PetProfileSetupView: View {
         }
         .navigationTitle("宠物档案")
         .navigationBarTitleDisplayMode(.inline)
+    }
+    
+    // MARK: - Helpers
+    
+    private func dismissKeyboard() {
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
     }
     
     // MARK: - Logic

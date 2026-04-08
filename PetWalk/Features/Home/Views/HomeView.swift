@@ -104,6 +104,10 @@ struct HomeView: View {
     @StateObject private var liveManager = LiveSessionManager.shared
     @State private var showLiveMonitor = false
     
+    // 不满足记录条件时的确认弹窗
+    @State private var showInvalidWalkAlert = false
+    @State private var showInvalidWalkToast = false
+    
     var body: some View {
         ZStack {
             // 背景色 (仅在非地图模式下显示)
@@ -142,9 +146,30 @@ struct HomeView: View {
                 )
             }
         }
+        // 遛狗未达标 toast
+        .overlay(alignment: .top) {
+            if showInvalidWalkToast {
+                HStack(spacing: 8) {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundColor(.white)
+                    Text("此次遛狗未达记录标准")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                        .foregroundColor(.white)
+                }
+                .padding(.horizontal, 20)
+                .padding(.vertical, 12)
+                .background(Color.black.opacity(0.75))
+                .cornerRadius(25)
+                .shadow(radius: 10)
+                .padding(.top, 60)
+                .transition(.move(edge: .top).combined(with: .opacity))
+                .animation(.spring(), value: showInvalidWalkToast)
+            }
+        }
         // 弹出奖励商店页
         .sheet(isPresented: $showShop) {
-            RewardShopView()  // 替换为奖励商店
+            RewardShopView()
         }
         // 弹出云遛狗监控页 (V2: enableLiveWalk)
         .sheet(isPresented: $showLiveMonitor) {
@@ -429,9 +454,15 @@ struct HomeView: View {
                 
                 // 结束按钮
                 Button(action: {
-                    withAnimation {
-                        walkSessionData = walkManager.stopWalk()
-                        showSummary = true
+                    let dur = walkManager.duration
+                    let dist = walkManager.distance
+                    if dur < WalkValidation.basicMinDurationSeconds || dist < WalkValidation.basicMinDistanceKm {
+                        showInvalidWalkAlert = true
+                    } else {
+                        withAnimation {
+                            walkSessionData = walkManager.stopWalk()
+                            showSummary = true
+                        }
                     }
                 }) {
                     Text("结束遛狗")
@@ -440,6 +471,18 @@ struct HomeView: View {
                         .frame(maxWidth: .infinity)
                         .frame(height: 56)
                         .primaryActionButton(gradient: [.red, .red.darker(by: 0.15)])
+                }
+                .alert("此次遛狗时间不足5分钟或距离不足200米，记录将不会被保存，确定结束吗？", isPresented: $showInvalidWalkAlert) {
+                    Button("继续遛狗", role: .cancel) {}
+                    Button("确定结束", role: .destructive) {
+                        withAnimation {
+                            _ = walkManager.stopWalk()
+                            showInvalidWalkToast = true
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                                showInvalidWalkToast = false
+                            }
+                        }
+                    }
                 }
             }
             .padding(24)

@@ -53,3 +53,8 @@ You are an expert iOS SwiftUI developer. All UI code must adhere to the followin
 ## 8. Specific Cursor Commands
 - **"Create Agent API"**: 当使用此指令时，Cursor 需同时生成：1. 符合 Islands 风格的 SwiftUI 视图 2. 对应的 OpenAPI 描述文件 3. 容错处理逻辑。
 - **"Verify Coze Compatibility"**: 让 Cursor 检查当前 API 定义是否缺少 `description` 或 `operationId`。
+
+## 9. Context & Intent Rules
+- **Pet Context Injection**: 所有的 Service 在涉及文本输出时，必须能从 `PetProfileService` 获取当前的宠物性格上下文。
+- **Weather-Aware Logic**: 在处理 `WalkingService` 的结算逻辑时，自动调用 `LocationWeatherService` 标记当前环境标签（如：#雷雨 #森林公园）。
+- **Intent Mapping**: 每一个核心 Service 的 Public 方法，必须在 `InteractionIntentService` 中注册一个对应的 `AppIntent`。

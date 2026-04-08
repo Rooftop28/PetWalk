@@ -261,21 +261,33 @@ class AchievementManager {
             }
         }
         
-        // 天气相关成就
+        // 天气相关成就（Tier 3：恶劣天气成就需满足 ≥15 分钟门槛）
+        let meetsWeatherThreshold = WalkValidation.meetsWeatherAchievementThreshold(sessionData)
+        
         if let weather = sessionData.weather {
             // 风雨无阻 (雨天遛狗超过15分钟)
-            if weather.condition == "rainy" && sessionData.duration >= 900 {
+            if weather.condition == "rainy" && meetsWeatherThreshold {
                 unlocked.append(contentsOf: tryUnlock("environment_rainy", userData: &userData))
             }
             
-            // 冰雪奇缘 (气温低于-5度)
-            if weather.temperature < -5 {
+            // 冰雪奇缘 (气温低于-5度，需 ≥15 分钟)
+            if weather.temperature < -5 && meetsWeatherThreshold {
                 unlocked.append(contentsOf: tryUnlock("environment_frozen", userData: &userData))
             }
             
-            // 夏日战士 (气温超过35度 + 傍晚时段)
-            if weather.temperature > 35 && hour >= 17 && hour <= 20 {
+            // 夏日战士 (气温超过35度 + 傍晚时段，需 ≥15 分钟)
+            if weather.temperature > 35 && hour >= 17 && hour <= 20 && meetsWeatherThreshold {
                 unlocked.append(contentsOf: tryUnlock("environment_summer", userData: &userData))
+            }
+            
+            // 雪地行者 (下雪天，需 ≥15 分钟)
+            if weather.condition == "snowy" && meetsWeatherThreshold {
+                unlocked.append(contentsOf: tryUnlock("environment_snow", userData: &userData))
+            }
+            
+            // 大雾行者 (大雾天，需 ≥15 分钟)
+            if weather.condition == "foggy" && meetsWeatherThreshold {
+                unlocked.append(contentsOf: tryUnlock("environment_foggy", userData: &userData))
             }
         }
         

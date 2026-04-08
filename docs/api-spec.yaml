@@ -1,7 +1,7 @@
 openapi: "3.0.3"
 info:
   title: PetWalk AI Agent API
-  version: "1.0.0"
+  version: "1.1.0"
   description: |
     PetWalk 应用的 AI Agent API 接口定义。
     所有接口的返回值均包含 `ai_summary` 字段（自然语言摘要，方便 AI Agent / Coze 理解上下文）
@@ -11,10 +11,29 @@ info:
     - Coze / 豆包 AI Agent 通过 App Intents 或 Deep Link 控制 PetWalk
     - Siri / Shortcuts 自动化遛狗流程
     - 第三方 AI 助手读取遛狗数据和日记
+    
+    **v1.1 新增**：
+    - PetProfileService：宠物性格、心情上下文（AI Agent 的"大脑"）
+    - LocationWeatherService：环境感知与遛狗建议（天气、位置语义化）
+    - InteractionIntentService：统一意图分发入口（所有外部 Agent 请求的唯一网关）
 
 servers:
   - url: petwalk://
     description: iOS Deep Link (本地调用)
+
+tags:
+  - name: 遛狗
+    description: 遛狗流程控制（开始、结束、状态查询、历史记录）
+  - name: 日记
+    description: AI 日记生成与查看
+  - name: 成就
+    description: 成就系统查询（总览、最近、建议、详情）
+  - name: 宠物
+    description: 宠物身份、性格、心情上下文（PetProfileService）
+  - name: 环境
+    description: 天气、位置、遛狗建议（LocationWeatherService）
+  - name: 系统
+    description: 意图分发与能力清单（InteractionIntentService）
 
 paths:
   /walk/start:
@@ -346,6 +365,153 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/AchievementDetailResponse"
+
+  # ==================== PetProfileService ====================
+
+  /pet/context:
+    get:
+      operationId: getPetContext
+      summary: 获取宠物完整上下文信息
+      description: |
+        返回宠物的完整身份信息，包括名字、品种、性格、当前心情、累计数据等。
+        这是 AI Agent 的"大脑"，当豆包/Coze 需要了解这只狗是谁时调用。
+        **调用时机**：用户问"我的狗叫什么"、"狗狗是什么品种"、"狗狗开心吗"等。
+      tags: [宠物]
+      responses:
+        "200":
+          description: 宠物上下文
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PetContextResponse"
+
+  /pet/mood:
+    get:
+      operationId: getPetMood
+      summary: 获取宠物实时心情
+      description: |
+        基于最后一次遛狗时间和当前天气实时计算心情分。
+        返回心情评分(0-1)、描述和天气影响。
+        **调用时机**：用户问"球球现在开心吗"、"狗狗心情怎么样"等。
+      tags: [宠物]
+      responses:
+        "200":
+          description: 实时心情数据
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MoodResponse"
+
+  /pet/persona:
+    get:
+      operationId: getPersonaBrief
+      summary: 获取AI人设简报
+      description: |
+        返回完整的 System Prompt、性格标签和语气约束。
+        用于构建 AI 对话上下文，确保生成内容符合宠物性格。
+        **调用时机**：需要以宠物身份生成任何文本内容之前。
+      tags: [宠物]
+      responses:
+        "200":
+          description: AI人设简报
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PersonaBriefResponse"
+
+  # ==================== LocationWeatherService ====================
+
+  /environment/context:
+    get:
+      operationId: getEnvironmentContext
+      summary: 获取当前环境上下文
+      description: |
+        返回天气、位置、附近景点和环境标签的综合信息。
+        将原始传感器数据语义化为 AI 可理解的描述。
+        **调用时机**：用户问"现在天气怎么样"、"附近有什么景点"等。
+      tags: [环境]
+      responses:
+        "200":
+          description: 环境上下文
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EnvironmentContextResponse"
+
+  /environment/advisory:
+    get:
+      operationId: getWalkAdvisory
+      summary: 获取遛狗建议
+      description: |
+        基于当前天气和时间判断是否适合遛狗，并给出建议。
+        包含最佳出行时间窗口和可解锁成就的提示。
+        **调用时机**：用户问"现在适合遛狗吗"、"什么时候出门好"等。
+        AI Agent 可以主动建议："外面下雪了，带我出去走走能解锁成就哦！"
+      tags: [环境]
+      responses:
+        "200":
+          description: 遛狗建议
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WalkAdvisoryResponse"
+
+  # ==================== InteractionIntentService ====================
+
+  /intent/list:
+    get:
+      operationId: getAvailableIntents
+      summary: 获取所有可用意图列表
+      description: |
+        返回当前 App 支持的所有 AI Agent 指令，包括描述、参数和 Deep Link。
+        这是 Agent 的"能力清单"，建议首次对接时先调用此接口了解可用操作。
+        **调用时机**：Agent 初始化时、用户问"你能做什么"时。
+      tags: [系统]
+      responses:
+        "200":
+          description: 可用意图列表
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AvailableIntentsResponse"
+
+  /intent/execute:
+    post:
+      operationId: executeIntent
+      summary: 执行指定意图
+      description: |
+        统一的指令分发入口，所有外部 Agent 请求都通过此接口。
+        内部会路由到对应的 Service 并返回结果。
+        支持权限校验和日志记录。
+        **调用时机**：当 Agent 需要执行任何操作时（如开始遛狗、查看成就等）。
+      tags: [系统]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [intent_name]
+              properties:
+                intent_name:
+                  type: string
+                  description: 意图名称，如 start_walk、get_pet_mood 等
+                parameters:
+                  type: object
+                  additionalProperties:
+                    type: string
+                  description: 意图参数键值对
+                source:
+                  type: string
+                  default: agent
+                  description: 调用来源标识
+      responses:
+        "200":
+          description: 意图执行结果
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IntentResponse"
 
 components:
   schemas:
@@ -754,3 +920,233 @@ components:
           type: string
           enum: [容易, 中等, 困难, 看运气]
           description: 预估难度
+
+    # ==================== PetProfileService Schemas ====================
+
+    PetContextResponse:
+      type: object
+      properties:
+        petName:
+          type: string
+        ownerName:
+          type: string
+        breed:
+          type: string
+        gender:
+          type: string
+        age:
+          type: string
+          description: 年龄描述（如"2岁3个月"）
+        ageGroup:
+          type: string
+          enum: [幼犬, 成犬, 老犬]
+        personalityTraits:
+          type: string
+          description: 性格标签组合
+        voiceStyle:
+          type: string
+          enum: [傻白甜, 傲娇毒舌, 哲学诗意, 暴躁老哥]
+        voiceInstruction:
+          type: string
+          description: AI 语气指令
+        currentMood:
+          type: string
+          enum: [excited, happy, expecting, depressed]
+        moodDescription:
+          type: string
+        totalWalks:
+          type: integer
+        totalDistanceKm:
+          type: number
+        totalBones:
+          type: integer
+        weatherContext:
+          type: string
+          nullable: true
+        ai_summary:
+          type: string
+        deep_link_url:
+          type: string
+
+    MoodResponse:
+      type: object
+      properties:
+        mood:
+          type: string
+        moodScore:
+          type: number
+          description: 心情评分 0.0-1.0
+        moodDescription:
+          type: string
+        hoursSinceLastWalk:
+          type: number
+          nullable: true
+        weatherInfluence:
+          type: string
+          nullable: true
+        ai_summary:
+          type: string
+
+    PersonaBriefResponse:
+      type: object
+      properties:
+        systemPrompt:
+          type: string
+          description: 完整的 System Prompt，可直接注入 LLM
+        personalitySummary:
+          type: string
+        voiceConstraint:
+          type: string
+        contextTags:
+          type: array
+          items:
+            type: string
+          description: 上下文标签（如 #柯基 #成犬 #傻白甜 #心情happy）
+        ai_summary:
+          type: string
+
+    # ==================== LocationWeatherService Schemas ====================
+
+    EnvironmentContextResponse:
+      type: object
+      properties:
+        weather:
+          $ref: "#/components/schemas/WeatherSnapshot"
+        location:
+          $ref: "#/components/schemas/LocationSnapshot"
+        nearbyLandmarks:
+          type: array
+          items:
+            $ref: "#/components/schemas/LandmarkInfo"
+        environmentTags:
+          type: array
+          items:
+            type: string
+        walkAdvice:
+          $ref: "#/components/schemas/WalkAdvice"
+        ai_summary:
+          type: string
+        deep_link_url:
+          type: string
+
+    WeatherSnapshot:
+      type: object
+      properties:
+        condition:
+          type: string
+        conditionDisplay:
+          type: string
+        temperature:
+          type: number
+        humidity:
+          type: number
+        windSpeed:
+          type: number
+        feelDescription:
+          type: string
+          description: 体感描述（如"舒适"、"寒冷"）
+        iconSymbol:
+          type: string
+
+    LocationSnapshot:
+      type: object
+      properties:
+        latitude:
+          type: number
+        longitude:
+          type: number
+        semanticDescription:
+          type: string
+          nullable: true
+
+    LandmarkInfo:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        category:
+          type: string
+        distanceMeters:
+          type: number
+          nullable: true
+        visited:
+          type: boolean
+
+    WalkAdvice:
+      type: object
+      properties:
+        isGoodTime:
+          type: boolean
+          description: 当前是否适合遛狗
+        recommendation:
+          type: string
+          description: 建议文案
+        bestTimeWindow:
+          type: string
+          nullable: true
+          description: 最佳出行时间窗口
+        achievementHint:
+          type: string
+          nullable: true
+          description: 当前条件下可解锁的成就提示
+
+    WalkAdvisoryResponse:
+      type: object
+      properties:
+        advice:
+          $ref: "#/components/schemas/WalkAdvice"
+        weather:
+          $ref: "#/components/schemas/WeatherSnapshot"
+        ai_summary:
+          type: string
+        deep_link_url:
+          type: string
+
+    # ==================== InteractionIntentService Schemas ====================
+
+    AvailableIntentsResponse:
+      type: object
+      properties:
+        intents:
+          type: array
+          items:
+            $ref: "#/components/schemas/IntentDescriptor"
+        ai_summary:
+          type: string
+
+    IntentDescriptor:
+      type: object
+      properties:
+        name:
+          type: string
+          description: 意图名称
+        description:
+          type: string
+          description: 详细描述（针对 AI Agent 优化）
+        category:
+          type: string
+          enum: [遛狗, 宠物, 环境, 成就, 日记, 导航]
+        parameters:
+          type: array
+          items:
+            type: string
+        deepLinkURL:
+          type: string
+
+    IntentResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        intentName:
+          type: string
+        result:
+          type: string
+          description: JSON 序列化的执行结果
+        deepLinkURL:
+          type: string
+          nullable: true
+        ai_summary:
+          type: string

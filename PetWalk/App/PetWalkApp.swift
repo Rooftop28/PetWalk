@@ -66,6 +66,11 @@ struct PetWalkApp: App {
                         .transition(.opacity)
                 }
             }
+            #if DEBUG
+            .overlay(alignment: .topTrailing) {
+                DebugFloatingBubble()
+            }
+            #endif
             .preferredColorScheme(.light)
             .animation(.easeInOut(duration: 0.5), value: initializer.isReady)
             .animation(.easeInOut(duration: 0.5), value: dataManager.userData.hasCompletedOnboarding)

@@ -58,20 +58,23 @@ struct StatsDetailView: View {
             let date = calendar.date(byAdding: .day, value: i, to: targetWeekStart)!
             let dayName = getDayName(for: date)
             
-            // 筛选这一天的所有记录
             let dayRecords = dataManager.records.filter { record in
-                let recordDay = record.day
+                if let ts = record.timestamp {
+                    return calendar.isDate(ts, inSameDayAs: date)
+                }
                 let targetDay = calendar.component(.day, from: date)
-                return recordDay == targetDay
+                let targetMonth = calendar.component(.month, from: date)
+                let recordDay = record.day
+                let monthStr = String(format: "%02d月", targetMonth)
+                return recordDay == targetDay && record.date.contains(monthStr)
             }
             
-            // 计算总值
             let value: Double
             switch type {
             case .distance:
                 value = dayRecords.reduce(0.0) { $0 + $1.distance }
             case .duration:
-                value = Double(dayRecords.reduce(0) { $0 + $1.duration }) / 60.0  // 转换为分钟
+                value = Double(dayRecords.reduce(0) { $0 + $1.duration })
             }
             
             result.append((day: dayName, value: value))
@@ -103,29 +106,9 @@ struct StatsDetailView: View {
     }
     
     var body: some View {
-        ZStack {
-            Color.appBackground.ignoresSafeArea()
-            
-            VStack(spacing: 0) {
-                // 顶部标题栏
-                HStack {
-                    Button(action: { dismiss() }) {
-                        Image(systemName: "chevron.left")
-                            .font(.title3)
-                            .foregroundColor(.appBrown)
-                    }
-                    Spacer()
-                    Text(type.title)
-                        .font(.system(size: 24, weight: .heavy, design: .rounded))
-                        .foregroundColor(.appBrown)
-                    Spacer()
-                    // 占位，保持标题居中
-                    Color.clear.frame(width: 30)
-                }
-                .padding(.horizontal, 20)
-                .padding(.top, 60)  // 为状态栏留出空间
-                .padding(.bottom, 20)
-                .background(Color.appBackground)  // 确保标题栏有背景
+        NavigationView {
+            ZStack {
+                Color.appBackground.ignoresSafeArea()
                 
                 ScrollView {
                     VStack(spacing: 30) {
@@ -144,7 +127,7 @@ struct StatsDetailView: View {
                             Spacer()
                             
                             Text(weekTitle)
-                                .font(.system(size: 20, weight: .bold, design: .rounded))
+                                .font(.system(size: 16, weight: .semibold, design: .rounded))
                                 .foregroundColor(.appBrown)
                             
                             Spacer()
@@ -164,13 +147,11 @@ struct StatsDetailView: View {
                         
                         // 条形图
                         VStack(spacing: 20) {
-                            // 图表区域
                             HStack(alignment: .bottom, spacing: 12) {
                                 ForEach(weekData, id: \.day) { data in
                                     VStack(spacing: 8) {
-                                        // 数值
                                         if data.value > 0 {
-                                            Text(String(format: type == .distance ? "%.1f" : "%.0f", data.value))
+                                            Text(formatValue(data.value))
                                                 .font(.system(size: 12, weight: .bold))
                                                 .foregroundColor(.appBrown)
                                         } else {
@@ -178,14 +159,12 @@ struct StatsDetailView: View {
                                                 .font(.system(size: 12))
                                         }
                                         
-                                        // 条形
                                         let height = maxValue > 0 ? (data.value / maxValue) * 200 : 0
                                         RoundedRectangle(cornerRadius: 8)
                                             .fill(data.value > 0 ? Color.appGreenMain : Color.gray.opacity(0.2))
                                             .frame(height: max(height, 8))
                                             .frame(maxWidth: .infinity)
                                         
-                                        // 星期
                                         Text(data.day)
                                             .font(.caption)
                                             .foregroundColor(.gray)
@@ -203,8 +182,8 @@ struct StatsDetailView: View {
                                 let totalValue = weekData.reduce(0.0) { $0 + $1.value }
                                 let avgValue = totalValue / 7.0
                                 
-                                WeekStatBox(title: "总计", value: String(format: type == .distance ? "%.1f" : "%.0f", totalValue), unit: type.unit)
-                                WeekStatBox(title: "日均", value: String(format: type == .distance ? "%.1f" : "%.0f", avgValue), unit: type.unit)
+                                WeekStatBox(title: "总计", value: formatValue(totalValue), unit: type.unit)
+                                WeekStatBox(title: "日均", value: formatValue(avgValue), unit: type.unit)
                             }
                             .padding(.horizontal, 20)
                         }
@@ -213,11 +192,28 @@ struct StatsDetailView: View {
                     .padding(.bottom, 100)
                 }
             }
+            .navigationTitle(type.title)
+            .navigationBarTitleDisplayMode(.large)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button(action: { dismiss() }) {
+                        Image(systemName: "chevron.left")
+                            .foregroundColor(.appBrown)
+                    }
+                }
+            }
         }
-        .ignoresSafeArea(edges: .top)  // 整个视图忽略顶部安全区域
     }
     
-    // 辅助函数：获取星期名称
+    func formatValue(_ value: Double) -> String {
+        switch type {
+        case .distance:
+            return String(format: "%.1f", value)
+        case .duration:
+            return String(format: "%.0f", value)
+        }
+    }
+    
     func getDayName(for date: Date) -> String {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "zh_CN")
